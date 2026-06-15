@@ -12,6 +12,13 @@ verzování je [semantické](https://semver.org/lang/cs/): **MAJOR.MINOR.PATCH**
 
 ## [Nezveřejněno]
 
+## [0.1.10] – 2026-06-16
+### Opraveno
+- „Najíždění" v režimech Momentary a Short: řez dříve čekal na platné Momentary
+  měření (~400 ms), takže hlasitý materiál hrál ~0,5 s naplno. Nyní se během warm-upu
+  řeže podle okamžité hlasitosti bloku (~10 ms) → ztlumení do ~30–50 ms. (Boost
+  zůstává hradlovaný, Integrated reaguje okamžitě dle persistované hodnoty.)
+
 ## [0.1.9] – 2026-06-16
 ### Opraveno
 - „Najíždění" po spuštění v režimu Integrated: warm-up zbytečně čekal 400 ms, takže

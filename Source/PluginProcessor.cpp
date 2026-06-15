@@ -330,8 +330,7 @@ void M3KNormalizatorProcessor::processBlock(juce::AudioBuffer<float>& buffer, ju
     {
         double ref = -70.0;
         bool   cutOnly = false;   // during warm-up we may cut, but never boost
-        const long long intMin   = (long long)(sampleRate_ * 0.4);
-        const long long momReady = momSamples;   // momentary valid after 400 ms
+        const long long intMin = (long long)(sampleRate_ * 0.4);
 
         if (windowReady)
         {
@@ -347,12 +346,12 @@ void M3KNormalizatorProcessor::processBlock(juce::AudioBuffer<float>& buffer, ju
                 case kCustomC:     ref = cCustomVal; break;
             }
         }
-        else if (activeSamples >= momReady)
+        else
         {
-            // Window not yet filled after silence: use the fast Momentary value
-            // ONLY to tame loud material quickly. No boosting on a half-filled
-            // window (that previously caused post-pause bursts).
-            ref = isC ? cMom : kMom;
+            // Window not yet filled after silence: use the INSTANTANEOUS block
+            // loudness (~10 ms) to tame loud material immediately. Cut only — never
+            // boost during warm-up (a quiet fade-in must not trigger a boost).
+            ref = isC ? blockCLoud : blockKLoud;
             cutOnly = true;
         }
 
