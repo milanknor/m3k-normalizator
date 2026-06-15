@@ -319,7 +319,10 @@ void M3KNormalizatorProcessor::processBlock(juce::AudioBuffer<float>& buffer, ju
             break;
         default: break; // momentary
     }
-    const bool windowReady = activeSamples >= windowNeeded;
+    // Integrated persists across pauses (silence is gated out of it), so its value
+    // is valid immediately on resume — no warm-up needed, react at once.
+    const bool isIntegrated = (mode == kIntegrated || mode == kIntegratedC);
+    const bool windowReady  = isIntegrated || (activeSamples >= windowNeeded);
 
     double targetNormGain = 1.0;
     double refForLog = -200.0;
@@ -359,8 +362,8 @@ void M3KNormalizatorProcessor::processBlock(juce::AudioBuffer<float>& buffer, ju
             double diffDb = (double)target - ref;
             // Allow boosting only after at least 400 ms of continuous signal, so a
             // quiet fade-in right after silence can't trigger a boost burst — even
-            // with a very short Custom window.
-            const bool allowBoost = !cutOnly && (activeSamples >= momSamples);
+            // with a very short Custom window. Integrated is trustworthy at once.
+            const bool allowBoost = !cutOnly && (isIntegrated || activeSamples >= momSamples);
             if (!allowBoost) diffDb = std::min(0.0, diffDb);
             diffDb = juce::jlimit(-40.0, 24.0, diffDb);      // boost capped at +24 dB
             targetNormGain = juce::Decibels::decibelsToGain((float)diffDb);

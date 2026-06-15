@@ -12,6 +12,13 @@ verzování je [semantické](https://semver.org/lang/cs/): **MAJOR.MINOR.PATCH**
 
 ## [Nezveřejněno]
 
+## [0.1.9] – 2026-06-16
+### Opraveno
+- „Najíždění" po spuštění v režimu Integrated: warm-up zbytečně čekal 400 ms, takže
+  skladba ~0,5 s hrála naplno a pak teprve sjela. Integrovaná hodnota přežívá přes
+  pauzu (ticho je z ní vyhradlované), takže je platná hned — zisk teď dosedne na
+  správnou úroveň do ~30 ms místo 0,5 s.
+
 ## [0.1.8] – 2026-06-16
 ### Opraveno
 - Náraz v režimu Custom s krátkým oknem: tiché okno se naplnilo okamžitě a změřilo
