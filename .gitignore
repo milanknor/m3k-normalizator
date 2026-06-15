@@ -1,0 +1,15 @@
+# Build výstupy
+/build/
+
+# JUCE framework (externí závislost — needrží se ve verzování projektu)
+/JUCE/
+
+# Visual Studio / IDE
+.vs/
+*.user
+*.suo
+*.vcxproj.user
+
+# OS
+Thumbs.db
+.DS_Store

@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Get-Command cmake)",
+      "PowerShell(cmake --version)",
+      "PowerShell($vsWhere = \"${env:ProgramFiles\\(x86\\)}\\\\Microsoft Visual Studio\\\\Installer\\\\vswhere.exe\"; if \\(Test-Path $vsWhere\\) { & $vsWhere -latest -property installationPath } else { \"vswhere not found\" })",
+      "Bash(cmd /c build.bat)",
+      "Bash(\"C:\\\\Program Files\\\\CMake\\\\bin\\\\cmake.exe\" --build build --config Release --parallel)",
+      "Bash(grep -iE \"error|\\\\.vst3$|->\")",
+      "Bash(grep -iE \"error C|error LNK|\\\\.vst3$|->\")",
+      "Bash(grep -iE \"error C|error LNK|\\\\.vst3$\")",
+      "Bash(\"C:\\\\Program Files\\\\CMake\\\\bin\\\\cmake.exe\" -B build -S .)",
+      "Bash(rm -rf build)"
+    ]
+  }
+}
