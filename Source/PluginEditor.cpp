@@ -268,11 +268,14 @@ void M3KNormalizatorEditor::drawVuMeter(juce::Graphics& g, juce::Rectangle<int> 
         if(fillH>0)
         {
             auto fill=bar.withTop(bar.getBottom()-fillH);
+            // Gradient anchored to the WHOLE bar so colour reflects absolute level:
+            // green low, yellow approaching 0 dB, red only at the very top.
             juce::ColourGradient grad(
-                juce::Colour(0xFFFF2020), fill.getTopLeft().toFloat(),
-                juce::Colour(0xFF30C870), fill.getBottomLeft().toFloat(), false);
-            grad.addColour(0.25, juce::Colour(0xFFFFCC00));
-            grad.addColour(0.55, juce::Colour(0xFF50DD50));
+                juce::Colour(0xFFFF2020), (float)bar.getX(), (float)bar.getY(),
+                juce::Colour(0xFF30C870), (float)bar.getX(), (float)bar.getBottom(), false);
+            grad.addColour(0.10, juce::Colour(0xFFFF2020)); // red down to ~0 dB
+            grad.addColour(0.20, juce::Colour(0xFFFFCC00)); // yellow ~ -6 dB
+            grad.addColour(0.42, juce::Colour(0xFF50DD50)); // green below
             g.setGradientFill(grad);
             g.fillRoundedRectangle(fill.toFloat(),2);
         }

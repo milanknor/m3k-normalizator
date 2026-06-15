@@ -12,6 +12,11 @@ verzování je [semantické](https://semver.org/lang/cs/): **MAJOR.MINOR.PATCH**
 
 ## [Nezveřejněno]
 
+## [0.1.4] – 2026-06-16
+### Opraveno
+- VU metr: barva výplně teď odpovídá skutečné úrovni (zelená dole, žlutá k 0 dB,
+  červená až nahoře) — dřív gradient ukazoval všechny barvy bez ohledu na úroveň
+
 ## [0.1.3] – 2026-06-15
 ### Přidáno
 - Kliknutí na logo v levém horním rohu otevře malé okno „o aplikaci" s logem a číslem verze
