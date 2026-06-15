@@ -11,6 +11,50 @@ static juce::Colour colM()   { return juce::Colour(0xFF30C870); }
 static juce::Colour colS()   { return juce::Colour(0xFF2090FF); }
 static juce::Colour colI()   { return amber(); }
 
+// ---- M3K logo (embedded SVG) ----
+static std::unique_ptr<juce::Drawable> makeLogo()
+{
+    static const char* logoSvg =
+        "<svg viewBox=\"222 100 236 96\" xmlns=\"http://www.w3.org/2000/svg\" width=\"236\" height=\"96\">"
+        "<defs><clipPath id=\"wideclip\"><rect x=\"140\" y=\"100\" width=\"400\" height=\"96\"/></clipPath></defs>"
+        "<g clip-path=\"url(#wideclip)\">"
+        "<circle cx=\"340\" cy=\"148\" r=\"52\" fill=\"#1a1a24\"/>"
+        "<circle cx=\"340\" cy=\"148\" r=\"74\" fill=\"none\" stroke=\"#F97316\" stroke-width=\"1.8\"/>"
+        "<circle cx=\"340\" cy=\"148\" r=\"52\" fill=\"none\" stroke=\"#F97316\" stroke-width=\"2.5\"/>"
+        "<circle cx=\"340\" cy=\"148\" r=\"32\" fill=\"none\" stroke=\"#F97316\" stroke-width=\"3.5\"/>"
+        "<circle cx=\"340\" cy=\"148\" r=\"96\" fill=\"none\" stroke=\"#F97316\" stroke-width=\"1.3\"/>"
+        "<circle cx=\"340\" cy=\"148\" r=\"118\" fill=\"none\" stroke=\"#F97316\" stroke-width=\"1.5\"/>"
+        "</g>"
+        "<path fill=\"#ffffff\" transform=\"translate(283.32,170) scale(0.0640,-0.0640)\" d=\"M857 702V0H686V421L529 0H391L233 422V0H62V702H264L461 216L656 702Z\"/>"
+        "<path fill=\"#ffffff\" transform=\"translate(352.07,170) scale(0.0640,-0.0640)\" d=\"M469 0 233 310V0H62V702H233V394L467 702H668L396 358L678 0Z\"/>"
+        "<path fill=\"#F97316\" transform=\"translate(339.05,140) scale(0.0265,-0.0265)\" d=\"M300 747Q375 747 428.5 721.0Q482 695 509.5 650.0Q537 605 537 549Q537 483 504.0 441.5Q471 400 427 385V381Q484 362 517.0 318.0Q550 274 550 205Q550 143 521.5 95.5Q493 48 438.5 21.0Q384 -6 309 -6Q189 -6 117.5 53.0Q46 112 42 231H208Q209 187 233.0 161.5Q257 136 303 136Q342 136 363.5 158.5Q385 181 385 218Q385 266 354.5 287.5Q324 309 257 309H225V448H257Q308 448 339.5 465.5Q371 483 371 528Q371 564 351.0 584.0Q331 604 296 604Q258 604 239.5 581.0Q221 558 218 524H51Q55 631 121.0 689.0Q187 747 300 747Z\"/>"
+        "</svg>";
+    return juce::Drawable::createFromImageData(logoSvg, std::strlen(logoSvg));
+}
+
+// ---- "About" popup content ----
+struct AboutComponent : public juce::Component
+{
+    std::unique_ptr<juce::Drawable> logo = makeLogo();
+    AboutComponent() { setSize(250, 196); }
+    void paint(juce::Graphics& g) override
+    {
+        g.fillAll(juce::Colour(0xFF161616));
+        g.setColour(amber()); g.drawRect(getLocalBounds(), 1);
+        if(logo) logo->drawWithin(g, juce::Rectangle<float>(getWidth()*0.5f-46,14,92,92),
+                                  juce::RectanglePlacement::centred, 1.0f);
+        g.setColour(amber()); g.setFont(pf(15,true));
+        g.drawText("M3K NORMALIZATOR", 0,112,getWidth(),20, juce::Justification::centred);
+        g.setColour(txtCol()); g.setFont(pf(12,true));
+        g.drawText("verze " JucePlugin_VersionString, 0,136,getWidth(),16, juce::Justification::centred);
+        g.setColour(dimCol()); g.setFont(pf(9));
+        g.drawText("LUFS normalizace  -  EBU R128 / IEC 61672",
+                   0,160,getWidth(),14, juce::Justification::centred);
+        g.drawText(juce::String::fromUTF8("(c) MilanAudio"),
+                   0,174,getWidth(),14, juce::Justification::centred);
+    }
+};
+
 // ---- LookAndFeel ----
 void M3KNormalizatorEditor::AmberLAF::drawRotarySlider(
     juce::Graphics& g, int x, int y, int w, int h,
@@ -89,23 +133,7 @@ M3KNormalizatorEditor::M3KNormalizatorEditor(M3KNormalizatorProcessor& p)
     setSize(juce::roundToInt(kDesignW * kUiScale),
             juce::roundToInt(kDesignH * kUiScale));
 
-    // M3K logo (embedded SVG)
-    static const char* logoSvg =
-        "<svg viewBox=\"222 100 236 96\" xmlns=\"http://www.w3.org/2000/svg\" width=\"236\" height=\"96\">"
-        "<defs><clipPath id=\"wideclip\"><rect x=\"140\" y=\"100\" width=\"400\" height=\"96\"/></clipPath></defs>"
-        "<g clip-path=\"url(#wideclip)\">"
-        "<circle cx=\"340\" cy=\"148\" r=\"52\" fill=\"#1a1a24\"/>"
-        "<circle cx=\"340\" cy=\"148\" r=\"74\" fill=\"none\" stroke=\"#F97316\" stroke-width=\"1.8\"/>"
-        "<circle cx=\"340\" cy=\"148\" r=\"52\" fill=\"none\" stroke=\"#F97316\" stroke-width=\"2.5\"/>"
-        "<circle cx=\"340\" cy=\"148\" r=\"32\" fill=\"none\" stroke=\"#F97316\" stroke-width=\"3.5\"/>"
-        "<circle cx=\"340\" cy=\"148\" r=\"96\" fill=\"none\" stroke=\"#F97316\" stroke-width=\"1.3\"/>"
-        "<circle cx=\"340\" cy=\"148\" r=\"118\" fill=\"none\" stroke=\"#F97316\" stroke-width=\"1.5\"/>"
-        "</g>"
-        "<path fill=\"#ffffff\" transform=\"translate(283.32,170) scale(0.0640,-0.0640)\" d=\"M857 702V0H686V421L529 0H391L233 422V0H62V702H264L461 216L656 702Z\"/>"
-        "<path fill=\"#ffffff\" transform=\"translate(352.07,170) scale(0.0640,-0.0640)\" d=\"M469 0 233 310V0H62V702H233V394L467 702H668L396 358L678 0Z\"/>"
-        "<path fill=\"#F97316\" transform=\"translate(339.05,140) scale(0.0265,-0.0265)\" d=\"M300 747Q375 747 428.5 721.0Q482 695 509.5 650.0Q537 605 537 549Q537 483 504.0 441.5Q471 400 427 385V381Q484 362 517.0 318.0Q550 274 550 205Q550 143 521.5 95.5Q493 48 438.5 21.0Q384 -6 309 -6Q189 -6 117.5 53.0Q46 112 42 231H208Q209 187 233.0 161.5Q257 136 303 136Q342 136 363.5 158.5Q385 181 385 218Q385 266 354.5 287.5Q324 309 257 309H225V448H257Q308 448 339.5 465.5Q371 483 371 528Q371 564 351.0 584.0Q331 604 296 604Q258 604 239.5 581.0Q221 558 218 524H51Q55 631 121.0 689.0Q187 747 300 747Z\"/>"
-        "</svg>";
-    logo = juce::Drawable::createFromImageData(logoSvg, std::strlen(logoSvg));
+    logo = makeLogo();
 
     std::fill(histM,histM+kHistSize,-70.f);
     std::fill(histS,histS+kHistSize,-70.f);
@@ -161,6 +189,13 @@ M3KNormalizatorEditor::~M3KNormalizatorEditor()
     normalizeButton .setLookAndFeel(nullptr);
     resetButton     .setLookAndFeel(nullptr);
     for(auto& b:modeButtons) b.setLookAndFeel(nullptr);
+}
+
+void M3KNormalizatorEditor::canvasClicked(juce::Point<int> p)
+{
+    if(!logoBounds.contains(p)) return;   // only the logo opens the About box
+    auto content = std::make_unique<AboutComponent>();
+    juce::CallOutBox::launchAsynchronously(std::move(content), logoBounds, &canvas);
 }
 
 void M3KNormalizatorEditor::timerCallback()
@@ -367,9 +402,9 @@ void M3KNormalizatorEditor::paintCanvas(juce::Graphics& g)
     g.setColour(juce::Colour(0xFF1A1A1A));
     g.fillRect(0,0,W,44);
     g.setColour(amber()); g.fillRect(0,43,W,1);
-    // Logo
+    // Logo (clickable — opens the About box)
     if(logo)
-        logo->drawWithin(g, juce::Rectangle<float>(10,3,40,40),
+        logo->drawWithin(g, logoBounds.toFloat(),
                          juce::RectanglePlacement::centred, 1.0f);
     g.setFont(pf(14,true)); g.setColour(amber());
     g.drawText("M3K NORMALIZATOR",56,0,260,44,juce::Justification::centredLeft);

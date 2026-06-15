@@ -12,6 +12,11 @@ verzování je [semantické](https://semver.org/lang/cs/): **MAJOR.MINOR.PATCH**
 
 ## [Nezveřejněno]
 
+## [0.1.3] – 2026-06-15
+### Přidáno
+- Kliknutí na logo v levém horním rohu otevře malé okno „o aplikaci" s logem a číslem verze
+  (nad logem se zobrazí ručička)
+
 ## [0.1.2] – 2026-06-15
 ### Opraveno
 - VU metry po zastavení přehrávání zůstávaly viset na poslední hodnotě —

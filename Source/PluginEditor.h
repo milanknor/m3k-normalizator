@@ -19,6 +19,8 @@ private:
     void timerCallback() override;
     void paintCanvas(juce::Graphics& g);
     void layoutCanvas();
+    void canvasClicked(juce::Point<int> p);
+    const juce::Rectangle<int> logoBounds { 10, 3, 40, 40 };
     void drawGraph(juce::Graphics& g, juce::Rectangle<int> bounds);
     void drawVuMeter(juce::Graphics& g, juce::Rectangle<int> bounds,
                      float dbL, float dbR, const juce::String& label);
@@ -30,6 +32,13 @@ private:
         explicit Canvas(M3KNormalizatorEditor& e) : ed(e) {}
         void paint(juce::Graphics& g) override   { ed.paintCanvas(g); }
         void resized() override                  { ed.layoutCanvas(); }
+        void mouseDown(const juce::MouseEvent& e) override { ed.canvasClicked(e.getPosition()); }
+        void mouseMove(const juce::MouseEvent& e) override
+        {
+            setMouseCursor(ed.logoBounds.contains(e.getPosition())
+                           ? juce::MouseCursor::PointingHandCursor
+                           : juce::MouseCursor::NormalCursor);
+        }
     };
     Canvas canvas { *this };
 
