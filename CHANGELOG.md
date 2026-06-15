@@ -12,6 +12,11 @@ verzování je [semantické](https://semver.org/lang/cs/): **MAJOR.MINOR.PATCH**
 
 ## [Nezveřejněno]
 
+## [0.2.0] – 2026-06-16
+### Změněno
+- Odstraněno diagnostické logování — chování po pauze potvrzeno jako stabilní.
+  Plugin už nezapisuje na disk. (Simulační skript sim_normalizer.py zůstává v repu.)
+
 ## [0.1.11] – 2026-06-16
 ### Opraveno (ověřeno simulací všech 8 režimů)
 - Kompletní přepracování chování zisku po pauze/spuštění (`sim_normalizer.py` testuje

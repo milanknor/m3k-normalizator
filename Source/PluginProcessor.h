@@ -121,10 +121,5 @@ private:
     double sampleRate_  = 44100.0;
     bool   prepared_    = false;
 
-    // ---- Diagnostics logging ----
-    std::unique_ptr<juce::FileLogger> logger;
-    int  logCounter = 0;
-    bool lastSignalPresent = false;
-
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(M3KNormalizatorProcessor)
 };
