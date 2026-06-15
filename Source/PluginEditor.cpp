@@ -171,11 +171,16 @@ void M3KNormalizatorEditor::timerCallback()
     sm(dispS,  processor.shortTermLufs .load());
     sm(dispI,  processor.integratedLufs.load());
     sm(dispNG, processor.normGainDb    .load());
-    // VU meters: peak — no extra display smoothing (ballistics handled in processor)
-    dispVuInL  = processor.vuInputDbL .load();
-    dispVuInR  = processor.vuInputDbR .load();
-    dispVuOutL = processor.vuOutputDbL.load();
-    dispVuOutR = processor.vuOutputDbR.load();
+    // VU meters: while audio is flowing the processor handles ballistics; if the host
+    // stops calling processBlock (transport stopped), pull the meters down to zero.
+    unsigned int bc = processor.blockCounter.load();
+    bool audioFresh = (bc != lastBlockCounter);
+    lastBlockCounter = bc;
+    auto vu=[&](float& d,float v){ d = audioFresh ? v : d + (-70.f - d)*0.35f; };
+    vu(dispVuInL,  processor.vuInputDbL .load());
+    vu(dispVuInR,  processor.vuInputDbR .load());
+    vu(dispVuOutL, processor.vuOutputDbL.load());
+    vu(dispVuOutR, processor.vuOutputDbR.load());
     dispLraIn  = processor.lraInputLU .load();
     dispLraOut = processor.lraOutputLU.load();
 

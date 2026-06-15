@@ -187,6 +187,8 @@ void M3KNormalizatorProcessor::processBlock(juce::AudioBuffer<float>& buffer, ju
     const int numChannels = juce::jlimit(1, 2, buffer.getNumChannels());
     if (numSamples <= 0) return;
 
+    blockCounter.fetch_add(1, std::memory_order_relaxed); // heartbeat for the GUI
+
     const float target     = *apvts.getRawParameterValue("targetLufs");
     const float releaseMs  = *apvts.getRawParameterValue("releaseMs");
     const float customMs   = *apvts.getRawParameterValue("customMs");

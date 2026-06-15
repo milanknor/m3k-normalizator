@@ -51,6 +51,7 @@ private:
     float dispVuInL = -70.f, dispVuInR = -70.f;
     float dispVuOutL = -70.f, dispVuOutR = -70.f;
     float dispLraIn = 0.f, dispLraOut = 0.f;
+    unsigned int lastBlockCounter = 0; // detect when audio callbacks stop
 
     // Graph history — 60s at 30fps = 1800 pts, showing OUTPUT LUFS
     static constexpr int kHistSize = 1800;

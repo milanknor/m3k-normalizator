@@ -12,6 +12,11 @@ verzování je [semantické](https://semver.org/lang/cs/): **MAJOR.MINOR.PATCH**
 
 ## [Nezveřejněno]
 
+## [0.1.2] – 2026-06-15
+### Opraveno
+- VU metry po zastavení přehrávání zůstávaly viset na poslední hodnotě —
+  nyní se při tichu / přerušení signálu plynule stáhnou na nulu (heartbeat z audio vlákna)
+
 ## [1.0.0] – 2026-06-15
 První verzovaný stav. Plugin obsahuje:
 

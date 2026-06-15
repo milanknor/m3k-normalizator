@@ -43,6 +43,7 @@ public:
     std::atomic<float> vuOutputDbR    { -70.0f };
     std::atomic<float> lraInputLU     {   0.0f };
     std::atomic<float> lraOutputLU    {   0.0f };
+    std::atomic<unsigned int> blockCounter { 0 }; // heartbeat: incremented each processBlock
 
     // Row 1 = A-weighted, Row 2 = C-weighted
     enum Mode { kMomentary=0, kShort, kIntegrated, kCustom,
