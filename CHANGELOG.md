@@ -12,6 +12,12 @@ verzování je [semantické](https://semver.org/lang/cs/): **MAJOR.MINOR.PATCH**
 
 ## [Nezveřejněno]
 
+## [0.1.8] – 2026-06-16
+### Opraveno
+- Náraz v režimu Custom s krátkým oknem: tiché okno se naplnilo okamžitě a změřilo
+  tichý náběh skladby → boost +19 dB v prvním bloku. Nyní se zesílení povolí až po
+  400 ms souvislého signálu ve všech režimech (ztlumení zůstává rychlé).
+
 ## [0.1.7] – 2026-06-16
 ### Opraveno
 - Náraz po spuštění u HLASITÉ skladby: warm-up dříve držel jednotku (0 dB) po celou

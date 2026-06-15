@@ -357,7 +357,11 @@ void M3KNormalizatorProcessor::processBlock(juce::AudioBuffer<float>& buffer, ju
         if (ref > -69.0)
         {
             double diffDb = (double)target - ref;
-            if (cutOnly) diffDb = std::min(0.0, diffDb);     // warm-up: cut only
+            // Allow boosting only after at least 400 ms of continuous signal, so a
+            // quiet fade-in right after silence can't trigger a boost burst — even
+            // with a very short Custom window.
+            const bool allowBoost = !cutOnly && (activeSamples >= momSamples);
+            if (!allowBoost) diffDb = std::min(0.0, diffDb);
             diffDb = juce::jlimit(-40.0, 24.0, diffDb);      // boost capped at +24 dB
             targetNormGain = juce::Decibels::decibelsToGain((float)diffDb);
         }
