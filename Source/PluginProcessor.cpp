@@ -323,27 +323,42 @@ void M3KNormalizatorProcessor::processBlock(juce::AudioBuffer<float>& buffer, ju
 
     double targetNormGain = 1.0;
     double refForLog = -200.0;
-    if (doNorm && signalPresent && windowReady)
+    if (doNorm && signalPresent)
     {
         double ref = -70.0;
-        const long long intMin = (long long)(sampleRate_ * 0.4);
-        switch (mode)
+        bool   cutOnly = false;   // during warm-up we may cut, but never boost
+        const long long intMin   = (long long)(sampleRate_ * 0.4);
+        const long long momReady = momSamples;   // momentary valid after 400 ms
+
+        if (windowReady)
         {
-            case kMomentary:   ref = kMom; break;
-            case kShort:       ref = kSt;  break;
-            case kIntegrated:  if (kIntCount > intMin) ref = kInt; break;
-            case kCustom:      ref = kCustomVal; break;
-            case kMomentaryC:  ref = cMom; break;
-            case kShortC:      ref = cSt;  break;
-            case kIntegratedC: if (cIntCount > intMin) ref = cInt; break;
-            case kCustomC:     ref = cCustomVal; break;
+            switch (mode)
+            {
+                case kMomentary:   ref = kMom; break;
+                case kShort:       ref = kSt;  break;
+                case kIntegrated:  if (kIntCount > intMin) ref = kInt; break;
+                case kCustom:      ref = kCustomVal; break;
+                case kMomentaryC:  ref = cMom; break;
+                case kShortC:      ref = cSt;  break;
+                case kIntegratedC: if (cIntCount > intMin) ref = cInt; break;
+                case kCustomC:     ref = cCustomVal; break;
+            }
+        }
+        else if (activeSamples >= momReady)
+        {
+            // Window not yet filled after silence: use the fast Momentary value
+            // ONLY to tame loud material quickly. No boosting on a half-filled
+            // window (that previously caused post-pause bursts).
+            ref = isC ? cMom : kMom;
+            cutOnly = true;
         }
 
         refForLog = ref;
         if (ref > -69.0)
         {
-            // Boost capped lower than cut, as a safety against loud bursts
-            double diffDb = juce::jlimit(-40.0, 24.0, (double)target - ref);
+            double diffDb = (double)target - ref;
+            if (cutOnly) diffDb = std::min(0.0, diffDb);     // warm-up: cut only
+            diffDb = juce::jlimit(-40.0, 24.0, diffDb);      // boost capped at +24 dB
             targetNormGain = juce::Decibels::decibelsToGain((float)diffDb);
         }
     }

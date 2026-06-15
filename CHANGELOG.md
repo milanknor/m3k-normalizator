@@ -12,6 +12,13 @@ verzování je [semantické](https://semver.org/lang/cs/): **MAJOR.MINOR.PATCH**
 
 ## [Nezveřejněno]
 
+## [0.1.7] – 2026-06-16
+### Opraveno
+- Náraz po spuštění u HLASITÉ skladby: warm-up dříve držel jednotku (0 dB) po celou
+  délku okna (až 3 s u Short), takže hlasitá skladba hrála naplno, než se začala řezat.
+  Nyní se během warm-upu povolí okamžité ztlumení podle Momentary (~400 ms), jen boost
+  čeká na naplnění okna. (Logování zatím ponecháno pro ověření.)
+
 ## [0.1.6] – 2026-06-16
 ### Přidáno (dočasné — diagnostika)
 - Zápis do logu `Dokumenty\M3K_Normalizator_log.txt` — pro ladění nárazů hlasitosti.
