@@ -111,6 +111,7 @@ private:
     // How many consecutive non-silent samples — gates boosting until the
     // measurement window is filled with real signal (prevents post-pause bursts)
     long long activeSamples = 0;
+    long long silentSamples = 0;   // continuous silence; resets Integrated after a gap
 
     // VU ballistic envelope (per channel L/R)
     double vuInLevel[2]  = { 0.0, 0.0 };

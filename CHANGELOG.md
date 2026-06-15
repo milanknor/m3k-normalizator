@@ -12,6 +12,18 @@ verzování je [semantické](https://semver.org/lang/cs/): **MAJOR.MINOR.PATCH**
 
 ## [Nezveřejněno]
 
+## [0.1.11] – 2026-06-16
+### Opraveno (ověřeno simulací všech 8 režimů)
+- Kompletní přepracování chování zisku po pauze/spuštění (`sim_normalizer.py` testuje
+  scénáře řez/boost/cross přes všechny režimy — žádný nepřesáhne +3 dB nad target):
+  - během ticha se **drží řez** (boost se uvolní k jednotce) → spuštění stejné stopy
+    bez přestřelení
+  - **rychlejší sjezd zisku** (10 ms, warm-up řez 5 ms)
+  - **reset Integrated po tichu** (>0,2 s) → konec náporu při změně z tiché na hlasitou
+    stopu (dříve až +15 dB)
+  - Integrated nově jako okénkový režim (po pauze krátký warm-up místo okamžité reakce
+    na zastaralou hodnotu)
+
 ## [0.1.10] – 2026-06-16
 ### Opraveno
 - „Najíždění" v režimech Momentary a Short: řez dříve čekal na platné Momentary

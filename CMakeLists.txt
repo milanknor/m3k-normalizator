@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(M3KNormalizator VERSION 0.1.10)
+project(M3KNormalizator VERSION 0.1.11)
 
 set(CMAKE_CXX_STANDARD 17)
 

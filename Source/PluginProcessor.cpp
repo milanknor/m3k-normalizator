@@ -170,6 +170,7 @@ void M3KNormalizatorProcessor::prepareToPlay(double sampleRate, int samplesPerBl
     normGainSmooth = 1.0;
     limGain = 1.0;
     activeSamples = 0;
+    silentSamples = 0;
     vuInLevel[0]=vuInLevel[1]=vuOutLevel[0]=vuOutLevel[1]=0.0;
 
     meterCounter = 0;
@@ -256,8 +257,17 @@ void M3KNormalizatorProcessor::processBlock(juce::AudioBuffer<float>& buffer, ju
     if (cActive) { cIntSum += blockCSum; cIntCount += numSamples; }
     const bool signalPresent = isC ? cActive : kActive;
 
-    // Track continuous-signal length; resets on silence (e.g. a pause)
-    if (signalPresent) activeSamples += numSamples; else activeSamples = 0;
+    // Track continuous-signal / silence length
+    if (signalPresent) { activeSamples += numSamples; silentSamples = 0; }
+    else               { activeSamples = 0; silentSamples += numSamples; }
+
+    // After a real gap, reset Integrated — treat resume as a new track so a stale
+    // integrated value from the previous track can't boost a louder new one.
+    if (silentSamples > (long long)(sampleRate_ * 0.2))
+    {
+        kIntSum = 0.0; kIntCount = 0;
+        cIntSum = 0.0; cIntCount = 0;
+    }
 
     // ---- Compute LUFS values (channel-summed mean power) ----
     auto lufsOf = [&](const juce::AudioBuffer<float>& buf, int nSmp, int nCh) -> double
@@ -319,17 +329,14 @@ void M3KNormalizatorProcessor::processBlock(juce::AudioBuffer<float>& buffer, ju
             break;
         default: break; // momentary
     }
-    // Integrated persists across pauses (silence is gated out of it), so its value
-    // is valid immediately on resume — no warm-up needed, react at once.
-    const bool isIntegrated = (mode == kIntegrated || mode == kIntegratedC);
-    const bool windowReady  = isIntegrated || (activeSamples >= windowNeeded);
+    const bool windowReady = (activeSamples >= windowNeeded);
 
     double targetNormGain = 1.0;
     double refForLog = -200.0;
+    bool   cutOnly = false;   // warm-up cut: drives the gain down extra-fast
     if (doNorm && signalPresent)
     {
         double ref = -70.0;
-        bool   cutOnly = false;   // during warm-up we may cut, but never boost
         const long long intMin = (long long)(sampleRate_ * 0.4);
 
         if (windowReady)
@@ -359,20 +366,28 @@ void M3KNormalizatorProcessor::processBlock(juce::AudioBuffer<float>& buffer, ju
         if (ref > -69.0)
         {
             double diffDb = (double)target - ref;
-            // Allow boosting only after at least 400 ms of continuous signal, so a
-            // quiet fade-in right after silence can't trigger a boost burst — even
-            // with a very short Custom window. Integrated is trustworthy at once.
-            const bool allowBoost = !cutOnly && (isIntegrated || activeSamples >= momSamples);
+            // Boost only after >=400 ms of continuous signal, so a quiet fade-in
+            // right after silence can't trigger a boost burst.
+            const bool allowBoost = !cutOnly && (activeSamples >= momSamples);
             if (!allowBoost) diffDb = std::min(0.0, diffDb);
             diffDb = juce::jlimit(-40.0, 24.0, diffDb);      // boost capped at +24 dB
             targetNormGain = juce::Decibels::decibelsToGain((float)diffDb);
         }
     }
+    else if (doNorm)
+    {
+        // Silence: hold any cut, but relax boosts back to unity. Holding the cut
+        // means a paused track resumes at the right (quiet) level with no burst.
+        targetNormGain = std::min(normGainSmooth, 1.0);
+    }
 
-    // Asymmetric smoothing: gain comes DOWN fast (catches sudden loud onsets),
-    // goes UP at the user's Speed setting.
-    const double downCoeff = std::exp(-(double)numSamples / (sampleRate_ * 0.030)); // ~30 ms
-    const double coeff = (targetNormGain < normGainSmooth) ? downCoeff : smoothCoeff;
+    // Asymmetric smoothing: gain comes DOWN fast (extra-fast during warm-up cut to
+    // kill any post-pause burst), and UP at the user's Speed setting.
+    const double downCoeff = std::exp(-(double)numSamples / (sampleRate_ * 0.010)); // ~10 ms
+    const double warmCoeff = std::exp(-(double)numSamples / (sampleRate_ * 0.005)); // ~5 ms
+    const double coeff = (targetNormGain < normGainSmooth)
+                         ? (cutOnly ? warmCoeff : downCoeff)
+                         : smoothCoeff;
     normGainSmooth = normGainSmooth * coeff + targetNormGain * (1.0 - coeff);
     normGainDb.store(juce::Decibels::gainToDecibels((float)normGainSmooth));
 
