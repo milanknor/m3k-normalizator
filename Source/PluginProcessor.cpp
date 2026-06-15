@@ -165,6 +165,7 @@ void M3KNormalizatorProcessor::prepareToPlay(double sampleRate, int samplesPerBl
 
     normGainSmooth = 1.0;
     limGain = 1.0;
+    activeSamples = 0;
     vuInLevel[0]=vuInLevel[1]=vuOutLevel[0]=vuOutLevel[1]=0.0;
 
     meterCounter = 0;
@@ -251,6 +252,9 @@ void M3KNormalizatorProcessor::processBlock(juce::AudioBuffer<float>& buffer, ju
     if (cActive) { cIntSum += blockCSum; cIntCount += numSamples; }
     const bool signalPresent = isC ? cActive : kActive;
 
+    // Track continuous-signal length; resets on silence (e.g. a pause)
+    if (signalPresent) activeSamples += numSamples; else activeSamples = 0;
+
     // ---- Compute LUFS values (channel-summed mean power) ----
     auto lufsOf = [&](const juce::AudioBuffer<float>& buf, int nSmp, int nCh) -> double
     {
@@ -296,9 +300,25 @@ void M3KNormalizatorProcessor::processBlock(juce::AudioBuffer<float>& buffer, ju
 
     // ---- Compute target normGain ----
     // During silence, target unity (0 dB) so the gain can't "wind up" and blast
-    // when playback resumes after a pause.
+    // when playback resumes after a pause. After silence we also wait until the
+    // active measurement window is filled with real signal before adapting, so a
+    // half-silent buffer can't trigger a huge boost on resume.
+    long long windowNeeded = momSamples;
+    switch (mode)
+    {
+        case kShort:  case kShortC:       windowNeeded = stSamples; break;
+        case kIntegrated: case kIntegratedC:
+            windowNeeded = (long long)(sampleRate_ * 0.4); break;
+        case kCustom: case kCustomC:
+            windowNeeded = juce::jlimit((long long)1, (long long)customSamplesMax,
+                                        (long long)(sampleRate_ * (double)customMs / 1000.0));
+            break;
+        default: break; // momentary
+    }
+    const bool windowReady = activeSamples >= windowNeeded;
+
     double targetNormGain = 1.0;
-    if (doNorm && signalPresent)
+    if (doNorm && signalPresent && windowReady)
     {
         double ref = -70.0;
         const long long intMin = (long long)(sampleRate_ * 0.4);

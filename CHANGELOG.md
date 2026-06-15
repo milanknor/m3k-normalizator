@@ -12,6 +12,12 @@ verzování je [semantické](https://semver.org/lang/cs/): **MAJOR.MINOR.PATCH**
 
 ## [Nezveřejněno]
 
+## [0.1.5] – 2026-06-16
+### Opraveno
+- Náraz hlasitosti po pauze: plugin teď nezesiluje, dokud se měřicí okno nenaplní
+  skutečným signálem (po tichu hraje na původní úrovni, pak se plynule dorovná).
+  Řeší zbylé případy, kdy po pauze a opětovném spuštění občas vystřelilo nahlas
+
 ## [0.1.4] – 2026-06-16
 ### Opraveno
 - VU metr: barva výplně teď odpovídá skutečné úrovni (zelená dole, žlutá k 0 dB,

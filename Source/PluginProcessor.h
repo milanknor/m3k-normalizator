@@ -108,6 +108,10 @@ private:
     // Safety output ceiling (peak limiter) gain-reduction state
     double limGain = 1.0;
 
+    // How many consecutive non-silent samples — gates boosting until the
+    // measurement window is filled with real signal (prevents post-pause bursts)
+    long long activeSamples = 0;
+
     // VU ballistic envelope (per channel L/R)
     double vuInLevel[2]  = { 0.0, 0.0 };
     double vuOutLevel[2] = { 0.0, 0.0 };
