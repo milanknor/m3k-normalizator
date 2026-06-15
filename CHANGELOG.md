@@ -12,6 +12,12 @@ verzování je [semantické](https://semver.org/lang/cs/): **MAJOR.MINOR.PATCH**
 
 ## [Nezveřejněno]
 
+## [0.1.6] – 2026-06-16
+### Přidáno (dočasné — diagnostika)
+- Zápis do logu `Dokumenty\M3K_Normalizator_log.txt` — pro ladění nárazů hlasitosti.
+  Loguje přechody ticho/signál, hlasitý výstup a stav (úrovně, ref, zisk, limiter).
+  Po vyřešení bude logování odstraněno.
+
 ## [0.1.5] – 2026-06-16
 ### Opraveno
 - Náraz hlasitosti po pauze: plugin teď nezesiluje, dokud se měřicí okno nenaplní
