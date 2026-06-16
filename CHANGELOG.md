@@ -12,6 +12,11 @@ verzování je [semantické](https://semver.org/lang/cs/): **MAJOR.MINOR.PATCH**
 
 ## [Nezveřejněno]
 
+## [0.2.7] – 2026-06-16
+### Změněno
+- Odstraněno diagnostické logování — vyhlazení limiteru (lookahead) ověřeno jako
+  funkční. Plugin už nezapisuje na disk.
+
 ## [0.2.6] – 2026-06-16
 ### Změněno
 - Vyhlazení limiteru při vysokém targetu: nahrazen okamžitý peak-limiter **lookahead
