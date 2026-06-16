@@ -12,6 +12,11 @@ verzování je [semantické](https://semver.org/lang/cs/): **MAJOR.MINOR.PATCH**
 
 ## [Nezveřejněno]
 
+## [0.2.5] – 2026-06-16
+### Přidáno (dočasné — diagnostika)
+- Znovu zapnuto diagnostické logování (`Dokumenty\M3K_Normalizator_log.txt`) kvůli
+  ladění další nesrovnalosti.
+
 ## [0.2.4] – 2026-06-16
 ### Změněno
 - Odstraněno diagnostické logování — pumpování i nápory ověřeny jako vyřešené

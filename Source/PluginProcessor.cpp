@@ -37,6 +37,10 @@ M3KNormalizatorProcessor::M3KNormalizatorProcessor()
         .withOutput("Output", juce::AudioChannelSet::stereo(), true)),
       apvts(*this, nullptr, "Parameters", createParameterLayout())
 {
+    auto logFile = juce::File::getSpecialLocation(juce::File::userDocumentsDirectory)
+                       .getChildFile("M3K_Normalizator_log.txt");
+    logFile.deleteFile(); // fresh log each load
+    logger.reset(new juce::FileLogger(logFile, "M3K Normalizator v" JucePlugin_VersionString " diagnostics", 0));
 }
 
 bool M3KNormalizatorProcessor::isBusesLayoutSupported(const BusesLayout& layouts) const
@@ -328,6 +332,7 @@ void M3KNormalizatorProcessor::processBlock(juce::AudioBuffer<float>& buffer, ju
     const bool windowReady = (activeSamples >= windowNeeded);
 
     double targetNormGain = 1.0;
+    double refForLog = -200.0;
     bool   cutOnly = false;   // warm-up cut: drives the gain down extra-fast
     if (doNorm && signalPresent)
     {
@@ -357,6 +362,7 @@ void M3KNormalizatorProcessor::processBlock(juce::AudioBuffer<float>& buffer, ju
             cutOnly = true;
         }
 
+        refForLog = ref;
         if (ref > -69.0)
         {
             double diffDb = (double)target - ref;
@@ -473,6 +479,37 @@ void M3KNormalizatorProcessor::processBlock(juce::AudioBuffer<float>& buffer, ju
         addSample(lraHistOut, kSt + gainDb);
         lraInputLU .store(computeLra(lraHistIn));
         lraOutputLU.store(computeLra(lraHistOut));
+    }
+
+    // ---- Diagnostics log ----
+    // Logs on silence<->signal transitions, on loud output (>-6 dBFS), and ~4x/sec.
+    if (logger != nullptr)
+    {
+        const float  outPk   = std::max(outputPeak[0], outputPeak[1]);
+        const double outPkDb = juce::Decibels::gainToDecibels(outPk, -100.0f);
+        const double gainDb  = juce::Decibels::gainToDecibels((float)normGainSmooth);
+        const bool   transition = (signalPresent != lastSignalPresent);
+        const bool   loud       = outPkDb > -6.0;
+
+        logCounter += numSamples;
+        if (transition || loud || logCounter >= (int)(sampleRate_ * 0.25))
+        {
+            logCounter = 0;
+            static const char* mn[8] = {"Mom","Short","Int","Custom",
+                                        "MomC","ShortC","IntC","CustomC"};
+            logger->logMessage(juce::String::formatted(
+                "%8.2fs %-7s %s%s mom=%6.1f st=%6.1f int=%6.1f ref=%6.1f -> tgt=%+6.1fdB gain=%+6.1fdB lim=%4.2f out=%6.1fdBFS active=%5.0fms",
+                juce::Time::getMillisecondCounter() / 1000.0,
+                mn[juce::jlimit(0, 7, mode)],
+                signalPresent ? "SIG" : "sil",
+                transition ? (signalPresent ? "^" : "v") : " ",
+                isC ? cMom : kMom, isC ? cSt : kSt, isC ? cInt : kInt,
+                refForLog <= -199.0 ? -99.9 : refForLog,
+                juce::Decibels::gainToDecibels((float)targetNormGain),
+                gainDb, limGain, outPkDb,
+                1000.0 * (double)activeSamples / sampleRate_));
+        }
+        lastSignalPresent = signalPresent;
     }
 }
 
