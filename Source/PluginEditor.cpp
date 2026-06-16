@@ -148,6 +148,7 @@ M3KNormalizatorEditor::M3KNormalizatorEditor(M3KNormalizatorProcessor& p)
     setupKnob(targetLufsSlider);
     setupKnob(releaseSlider);
     setupKnob(windowSlider);
+    setupKnob(ceilingSlider);
 
     normalizeButton.setLookAndFeel(&laf);
     normalizeButton.setColour(juce::ToggleButton::textColourId,txtCol());
@@ -158,6 +159,7 @@ M3KNormalizatorEditor::M3KNormalizatorEditor(M3KNormalizatorProcessor& p)
     targetAttach  = std::make_unique<SliderAttachment>(processor.apvts,"targetLufs",targetLufsSlider);
     releaseAttach = std::make_unique<SliderAttachment>(processor.apvts,"releaseMs",  releaseSlider);
     windowAttach  = std::make_unique<SliderAttachment>(processor.apvts,"customMs",   windowSlider);
+    ceilingAttach = std::make_unique<SliderAttachment>(processor.apvts,"ceiling",    ceilingSlider);
     normAttach    = std::make_unique<ButtonAttachment>(processor.apvts,"normalize",  normalizeButton);
 
     static const char* mnames[]={"Momentary","Short","Integrated","Custom",
@@ -177,34 +179,10 @@ M3KNormalizatorEditor::M3KNormalizatorEditor(M3KNormalizatorProcessor& p)
     resetButton.onClick=[this](){ processor.resetIntegrated(); };
     canvas.addAndMakeVisible(resetButton);
 
-    // Preset save / load (per-instance)
-    saveButton.setLookAndFeel(&laf);
-    saveButton.onClick=[this]()
-    {
-        auto dir=presetDir();
-        chooser=std::make_unique<juce::FileChooser>("Uložit preset",dir,"*.m3kpreset");
-        chooser->launchAsync(juce::FileBrowserComponent::saveMode
-                            | juce::FileBrowserComponent::canSelectFiles,
-            [this](const juce::FileChooser& fc){
-                auto f=fc.getResult();
-                if(f!=juce::File()) processor.savePreset(f.withFileExtension("m3kpreset"));
-            });
-    };
-    canvas.addAndMakeVisible(saveButton);
-
-    loadButton.setLookAndFeel(&laf);
-    loadButton.onClick=[this]()
-    {
-        auto dir=presetDir();
-        chooser=std::make_unique<juce::FileChooser>("Načíst preset",dir,"*.m3kpreset");
-        chooser->launchAsync(juce::FileBrowserComponent::openMode
-                            | juce::FileBrowserComponent::canSelectFiles,
-            [this](const juce::FileChooser& fc){
-                auto f=fc.getResult();
-                if(f.existsAsFile()) processor.loadPreset(f);
-            });
-    };
-    canvas.addAndMakeVisible(loadButton);
+    // Preset menu (factory standards + save/load)
+    presetButton.setLookAndFeel(&laf);
+    presetButton.onClick=[this](){ showPresetMenu(); };
+    canvas.addAndMakeVisible(presetButton);
 
     startTimerHz(30);
 }
@@ -217,8 +195,7 @@ M3KNormalizatorEditor::~M3KNormalizatorEditor()
     windowSlider    .setLookAndFeel(nullptr);
     normalizeButton .setLookAndFeel(nullptr);
     resetButton     .setLookAndFeel(nullptr);
-    saveButton      .setLookAndFeel(nullptr);
-    loadButton      .setLookAndFeel(nullptr);
+    presetButton    .setLookAndFeel(nullptr);
     for(auto& b:modeButtons) b.setLookAndFeel(nullptr);
 }
 
@@ -228,6 +205,74 @@ juce::File M3KNormalizatorEditor::presetDir()
               .getChildFile("M3K Normalizator Presets");
     if(!d.exists()) d.createDirectory();
     return d;
+}
+
+void M3KNormalizatorEditor::setParam(const juce::String& id, float value)
+{
+    if(auto* p=processor.apvts.getParameter(id))
+        p->setValueNotifyingHost(processor.apvts.getParameterRange(id).convertTo0to1(value));
+}
+
+void M3KNormalizatorEditor::applyFactoryPreset(float lufs, float ceiling)
+{
+    setParam("targetLufs", lufs);
+    setParam("ceiling",    ceiling);
+    setParam("mode",       2.0f);   // Integrated (standardní pro normy)
+    setParam("normalize",  1.0f);   // zapnout
+}
+
+void M3KNormalizatorEditor::showPresetMenu()
+{
+    struct FP { const char* name; float lufs; float ceil; };
+    static const FP stream[]={{"Spotify  (-14)",-14,-1},{"Spotify Loud  (-11)",-11,-1},
+        {"Apple Music  (-16)",-16,-1},{"YouTube  (-14)",-14,-1},{"Amazon Music  (-14)",-14,-1},
+        {"Tidal  (-14)",-14,-1},{"Deezer  (-15)",-15,-1}};
+    static const FP broad[]={{"EBU R128  (-23)",-23,-1},{"ATSC A/85  (-24)",-24,-2},
+        {"TR-B32  (-24)",-24,-1}};
+    static const FP pod[]={{"Podcast  (-16)",-16,-1},{"Mluvene slovo  (-19)",-19,-1}};
+    static const FP club[]={{"Klub / DJ max  (-8)",-8,-1},{"Na doraz  (-6)",-6,-0.3f}};
+
+    juce::PopupMenu menu, mS, mB, mP, mC;
+    std::vector<FP> all;
+    auto fill=[&](juce::PopupMenu& m, const FP* arr, int n){
+        for(int i=0;i<n;++i){ all.push_back(arr[i]); m.addItem((int)all.size(), arr[i].name); }
+    };
+    fill(mS, stream, 7); fill(mB, broad, 3); fill(mP, pod, 2); fill(mC, club, 2);
+    menu.addSectionHeader("Tovarni predvolby (Integrated)");
+    menu.addSubMenu("Streaming hudba", mS);
+    menu.addSubMenu("Broadcast / TV",  mB);
+    menu.addSubMenu("Podcast",         mP);
+    menu.addSubMenu("Klub / DJ",       mC);
+    menu.addSeparator();
+    menu.addItem(1000, "Ulozit preset...");
+    menu.addItem(1001, "Nacist preset...");
+
+    menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(presetButton),
+        [this,all](int r)
+        {
+            if(r>=1 && r<=(int)all.size())
+                applyFactoryPreset(all[r-1].lufs, all[r-1].ceil);
+            else if(r==1000)
+            {
+                chooser=std::make_unique<juce::FileChooser>("Uložit preset",presetDir(),"*.m3kpreset");
+                chooser->launchAsync(juce::FileBrowserComponent::saveMode
+                                    | juce::FileBrowserComponent::canSelectFiles,
+                    [this](const juce::FileChooser& fc){
+                        auto f=fc.getResult();
+                        if(f!=juce::File()) processor.savePreset(f.withFileExtension("m3kpreset"));
+                    });
+            }
+            else if(r==1001)
+            {
+                chooser=std::make_unique<juce::FileChooser>("Načíst preset",presetDir(),"*.m3kpreset");
+                chooser->launchAsync(juce::FileBrowserComponent::openMode
+                                    | juce::FileBrowserComponent::canSelectFiles,
+                    [this](const juce::FileChooser& fc){
+                        auto f=fc.getResult();
+                        if(f.existsAsFile()) processor.loadPreset(f);
+                    });
+            }
+        });
 }
 
 void M3KNormalizatorEditor::canvasClicked(juce::Point<int> p)
@@ -516,17 +561,17 @@ void M3KNormalizatorEditor::paintCanvas(juce::Graphics& g)
     int ctrlTop=knobArea.getY()-32;
     g.setColour(juce::Colour(0xFF282828)); g.fillRect(0,ctrlTop,W,1);
 
-    // Knob labels (3 knobs)
-    const int kW=100, kGap=30;
-    const int kX=(W-(3*kW+2*kGap))/2;
+    // Knob labels (4 knobs)
+    const int kW=86, kGap=18;
+    const int kX=(W-(4*kW+3*kGap))/2;
     const int labelY=knobArea.getY()-23;       // shared baseline for all top labels
     const struct{const char* top,*unit;} kl[]=
-        {{"TARGET LUFS","LUFS"},{"SPEED","ms"},{"WINDOW","ms"}};
-    for(int i=0;i<3;++i){
+        {{"TARGET LUFS","LUFS"},{"SPEED","ms"},{"WINDOW","ms"},{"CEILING","dBFS"}};
+    for(int i=0;i<4;++i){
         int x=kX+i*(kW+kGap);
-        g.setFont(pf(10.5f,true)); g.setColour(txtCol());
+        g.setFont(pf(10.f,true)); g.setColour(txtCol());
         g.drawText(kl[i].top, x,labelY,kW,13,juce::Justification::centred);
-        g.setFont(pf(9.5f)); g.setColour(juce::Colour(0xFFA8A8A8));
+        g.setFont(pf(9.f)); g.setColour(juce::Colour(0xFFA8A8A8));
         g.drawText(kl[i].unit,x,knobArea.getBottom()+5,kW,12,juce::Justification::centred);
     }
 }
@@ -546,9 +591,8 @@ void M3KNormalizatorEditor::layoutCanvas()
     // Normalize toggle + Reset — top-right of header (above the orange line)
     normalizeButton.setBounds(W-150, 11, 136, 22);
     resetButton.setBounds(W-150-58, 12, 52, 20);
-    // Preset SAVE / LOAD — header, between title and Reset
-    saveButton.setBounds(214, 12, 44, 20);
-    loadButton.setBounds(262, 12, 44, 20);
+    // PRESET menu — header, between title and Reset
+    presetButton.setBounds(214, 12, 92, 20);
 
     // Mode buttons — two rows of 4 (row1 = A-weighted, row2 = C-weighted)
     const int mBW=96, mBH=22, mBGapX=6, mBGapY=4;
@@ -561,7 +605,7 @@ void M3KNormalizatorEditor::layoutCanvas()
     }
 
     // Layout areas
-    const int kH=90, kW=100, kGap=30;
+    const int kH=90, kW=86, kGap=18;
     const int ctrlH=kH+30;
     const int graphTop=modeY+2*mBH+mBGapY+8;
     const int graphH=H-graphTop-ctrlH-34;   // extra gap above the control labels
@@ -572,13 +616,14 @@ void M3KNormalizatorEditor::layoutCanvas()
     vuOutBounds = {W-pad-vuW,   graphTop, vuW, graphH};
     graphBounds = {pad+vuW+4,   graphTop, W-2*pad-2*vuW-8, graphH};
 
-    // Knobs (3)
-    const int kX=(W-(3*kW+2*kGap))/2;
+    // Knobs (4) — narrower so they fit between the LRA badges
+    const int kX=(W-(4*kW+3*kGap))/2;
     const int kY=H-ctrlH+8;
-    knobArea={kX,kY,3*kW+2*kGap,kH};
-    targetLufsSlider.setBounds(kX,             kY,kW,kH);
-    releaseSlider   .setBounds(kX+  (kW+kGap), kY,kW,kH);
+    knobArea={kX,kY,4*kW+3*kGap,kH};
+    targetLufsSlider.setBounds(kX+0*(kW+kGap), kY,kW,kH);
+    releaseSlider   .setBounds(kX+1*(kW+kGap), kY,kW,kH);
     windowSlider    .setBounds(kX+2*(kW+kGap), kY,kW,kH);
+    ceilingSlider   .setBounds(kX+3*(kW+kGap), kY,kW,kH);
 
     // LRA badges — same diameter & vertical centre as the knobs, under each VU meter
     const int badgeD  = 64;

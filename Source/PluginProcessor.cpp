@@ -20,6 +20,11 @@ juce::AudioProcessorValueTreeState::ParameterLayout M3KNormalizatorProcessor::cr
         juce::NormalisableRange<float>(10.0f, 10000.0f, 1.0f, 0.4f), 1000.0f,
         juce::AudioParameterFloatAttributes().withLabel("ms")));
 
+    layout.add(std::make_unique<juce::AudioParameterFloat>(
+        "ceiling", "Ceiling",
+        juce::NormalisableRange<float>(-6.0f, 0.0f, 0.1f), -0.3f,
+        juce::AudioParameterFloatAttributes().withLabel("dBFS")));
+
     layout.add(std::make_unique<juce::AudioParameterBool>(
         "normalize", "Auto Normalize", true));
 
@@ -412,7 +417,8 @@ void M3KNormalizatorProcessor::processBlock(juce::AudioBuffer<float>& buffer, ju
     // ---- Safety output ceiling (stereo-linked lookahead limiter) ----
     // The gain ramps down over the lookahead so it meets each peak smoothly instead
     // of snapping per-sample — much smoother when pushed hard (e.g. high target).
-    const double ceiling  = juce::Decibels::decibelsToGain(-0.3); // -0.3 dBFS (max loud)
+    const double ceiling  = juce::Decibels::decibelsToGain(
+                                (float)*apvts.getRawParameterValue("ceiling")); // user / preset ceiling
     const double atkCoeff = 1.0 - std::exp(-3.0 / (double)limLookahead);       // ramp over lookahead
     const double relCoeff = 1.0 - std::exp(-(double)1.0 / (sampleRate_ * 0.15)); // ~150 ms release
     for (int i = 0; i < numSamples; ++i)

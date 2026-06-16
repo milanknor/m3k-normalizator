@@ -12,6 +12,17 @@ verzování je [semantické](https://semver.org/lang/cs/): **MAJOR.MINOR.PATCH**
 
 ## [Nezveřejněno]
 
+## [0.4.0] – 2026-06-16
+### Přidáno
+- Tovární předvolby podle standardů (menu PRESET): Streaming (Spotify, Apple Music,
+  YouTube, Amazon, Tidal, Deezer + Spotify Loud), Broadcast/TV (EBU R128, ATSC A/85,
+  TR-B32), Podcast, Klub/DJ. Každá nastaví Target LUFS, Ceiling, mód Integrated a
+  zapne normalizaci.
+- Nový ovladač **CEILING** (strop limiteru, −6 až 0 dBFS) — řiditelný ručně i přes
+  předvolby (např. −1 dBFS pro streaming).
+- Uložit/Načíst preset přesunuto do menu PRESET (místo dvou tlačítek).
+- Okno o něco vyšší kvůli 4. ovladači.
+
 ## [0.3.0] – 2026-06-16
 ### Přidáno
 - Presety: tlačítka SAVE / LOAD v hlavičce ukládají a načítají nastavení do souboru

@@ -13,7 +13,7 @@ public:
 
 private:
     // Window kept compact; controls at original size, graph/VU take the rest
-    static constexpr int kDesignW = 544, kDesignH = 470;
+    static constexpr int kDesignW = 544, kDesignH = 496;
     static constexpr float kUiScale = 1.0f;
 
     void timerCallback() override;
@@ -47,18 +47,20 @@ private:
 
     M3KNormalizatorProcessor& processor;
 
-    juce::Slider targetLufsSlider, releaseSlider, windowSlider;
+    juce::Slider targetLufsSlider, releaseSlider, windowSlider, ceilingSlider;
     juce::ToggleButton normalizeButton { "NORMALIZE" };
     juce::TextButton   modeButtons[8];
-    juce::TextButton   resetButton { "RESET I" };
-    juce::TextButton   saveButton  { "SAVE" };
-    juce::TextButton   loadButton  { "LOAD" };
+    juce::TextButton   resetButton  { "RESET I" };
+    juce::TextButton   presetButton { "PRESET" };
     std::unique_ptr<juce::FileChooser> chooser;
     juce::File presetDir();
+    void showPresetMenu();
+    void applyFactoryPreset(float lufs, float ceiling);
+    void setParam(const juce::String& id, float value);
 
     using SliderAttachment = juce::AudioProcessorValueTreeState::SliderAttachment;
     using ButtonAttachment = juce::AudioProcessorValueTreeState::ButtonAttachment;
-    std::unique_ptr<SliderAttachment> targetAttach, releaseAttach, windowAttach;
+    std::unique_ptr<SliderAttachment> targetAttach, releaseAttach, windowAttach, ceilingAttach;
     std::unique_ptr<ButtonAttachment> normAttach;
 
     // Smoothed display values
