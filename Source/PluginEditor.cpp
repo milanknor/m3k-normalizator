@@ -562,18 +562,18 @@ void M3KNormalizatorEditor::paintCanvas(juce::Graphics& g)
     int ctrlTop=knobArea.getY()-32;
     g.setColour(juce::Colour(0xFF282828)); g.fillRect(0,ctrlTop,W,1);
 
-    // Knob labels (4 knobs)
-    const int kW=86, kGap=18;
+    // Knob labels (4 knobs) — labels can be a touch wider than the knob box
+    const int kW=72, kGap=24;
     const int kX=(W-(4*kW+3*kGap))/2;
     const int labelY=knobArea.getY()-23;       // shared baseline for all top labels
     const struct{const char* top,*unit;} kl[]=
         {{"TARGET LUFS","LUFS"},{"SPEED","ms"},{"WINDOW","ms"},{"CEILING","dBFS"}};
     for(int i=0;i<4;++i){
-        int x=kX+i*(kW+kGap);
-        g.setFont(pf(10.f,true)); g.setColour(txtCol());
-        g.drawText(kl[i].top, x,labelY,kW,13,juce::Justification::centred);
+        int cx=kX+i*(kW+kGap)+kW/2;             // centre of this knob
+        g.setFont(pf(9.5f,true)); g.setColour(txtCol());
+        g.drawText(kl[i].top, cx-48,labelY,96,13,juce::Justification::centred);
         g.setFont(pf(9.f)); g.setColour(juce::Colour(0xFFA8A8A8));
-        g.drawText(kl[i].unit,x,knobArea.getBottom()+5,kW,12,juce::Justification::centred);
+        g.drawText(kl[i].unit,cx-48,knobArea.getBottom()+5,96,12,juce::Justification::centred);
     }
 }
 
@@ -605,9 +605,9 @@ void M3KNormalizatorEditor::layoutCanvas()
                                  modeY+row*(mBH+mBGapY), mBW, mBH);
     }
 
-    // Layout areas
-    const int kH=90, kW=86, kGap=18;
-    const int ctrlH=kH+30;
+    // Layout areas — knob box sized so its drawn circle (min(kW,kH)-8) == LRA badge (64)
+    const int kH=72, kW=72, kGap=24;
+    const int ctrlH=kH+48;
     const int graphTop=modeY+2*mBH+mBGapY+8;
     const int graphH=H-graphTop-ctrlH-34;   // extra gap above the control labels
 

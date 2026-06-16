@@ -12,6 +12,10 @@ verzování je [semantické](https://semver.org/lang/cs/): **MAJOR.MINOR.PATCH**
 
 ## [Nezveřejněno]
 
+## [0.4.2] – 2026-06-16
+### Změněno
+- Všechna kolečka dole (4 knoby + 2 LRA políčka) mají nyní stejný průměr (64 px).
+
 ## [0.4.1] – 2026-06-16
 ### Změněno
 - Tovární předvolby nově nastavují i **Speed** (streaming 1000 ms, broadcast 1500 ms,
