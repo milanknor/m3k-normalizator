@@ -177,6 +177,35 @@ M3KNormalizatorEditor::M3KNormalizatorEditor(M3KNormalizatorProcessor& p)
     resetButton.onClick=[this](){ processor.resetIntegrated(); };
     canvas.addAndMakeVisible(resetButton);
 
+    // Preset save / load (per-instance)
+    saveButton.setLookAndFeel(&laf);
+    saveButton.onClick=[this]()
+    {
+        auto dir=presetDir();
+        chooser=std::make_unique<juce::FileChooser>("Uložit preset",dir,"*.m3kpreset");
+        chooser->launchAsync(juce::FileBrowserComponent::saveMode
+                            | juce::FileBrowserComponent::canSelectFiles,
+            [this](const juce::FileChooser& fc){
+                auto f=fc.getResult();
+                if(f!=juce::File()) processor.savePreset(f.withFileExtension("m3kpreset"));
+            });
+    };
+    canvas.addAndMakeVisible(saveButton);
+
+    loadButton.setLookAndFeel(&laf);
+    loadButton.onClick=[this]()
+    {
+        auto dir=presetDir();
+        chooser=std::make_unique<juce::FileChooser>("Načíst preset",dir,"*.m3kpreset");
+        chooser->launchAsync(juce::FileBrowserComponent::openMode
+                            | juce::FileBrowserComponent::canSelectFiles,
+            [this](const juce::FileChooser& fc){
+                auto f=fc.getResult();
+                if(f.existsAsFile()) processor.loadPreset(f);
+            });
+    };
+    canvas.addAndMakeVisible(loadButton);
+
     startTimerHz(30);
 }
 
@@ -188,7 +217,17 @@ M3KNormalizatorEditor::~M3KNormalizatorEditor()
     windowSlider    .setLookAndFeel(nullptr);
     normalizeButton .setLookAndFeel(nullptr);
     resetButton     .setLookAndFeel(nullptr);
+    saveButton      .setLookAndFeel(nullptr);
+    loadButton      .setLookAndFeel(nullptr);
     for(auto& b:modeButtons) b.setLookAndFeel(nullptr);
+}
+
+juce::File M3KNormalizatorEditor::presetDir()
+{
+    auto d=juce::File::getSpecialLocation(juce::File::userDocumentsDirectory)
+              .getChildFile("M3K Normalizator Presets");
+    if(!d.exists()) d.createDirectory();
+    return d;
 }
 
 void M3KNormalizatorEditor::canvasClicked(juce::Point<int> p)
@@ -414,10 +453,11 @@ void M3KNormalizatorEditor::paintCanvas(juce::Graphics& g)
         logo->drawWithin(g, logoBounds.toFloat(),
                          juce::RectanglePlacement::centred, 1.0f);
     g.setFont(pf(14,true)); g.setColour(amber());
-    g.drawText("M3K NORMALIZATOR",56,0,260,44,juce::Justification::centredLeft);
-    g.setFont(pf(9)); g.setColour(dimCol());
-    g.drawText("v" JucePlugin_VersionString, 205,0,90,44,juce::Justification::centredLeft);
-    // (normalize toggle is placed top-right as a child component)
+    g.drawText("M3K NORMALIZATOR",56,0,150,44,juce::Justification::centredLeft);
+    // version shown bottom-left; SAVE/LOAD + normalize toggle are child components
+    g.setFont(pf(8)); g.setColour(dimCol());
+    g.drawText("v" JucePlugin_VersionString, 6, kDesignH-12, 70, 11,
+               juce::Justification::centredLeft);
 
     // Current value strip
     const int sY=48, sH=28, sw=(W-28)/4;
@@ -506,6 +546,9 @@ void M3KNormalizatorEditor::layoutCanvas()
     // Normalize toggle + Reset — top-right of header (above the orange line)
     normalizeButton.setBounds(W-150, 11, 136, 22);
     resetButton.setBounds(W-150-58, 12, 52, 20);
+    // Preset SAVE / LOAD — header, between title and Reset
+    saveButton.setBounds(214, 12, 44, 20);
+    loadButton.setBounds(262, 12, 44, 20);
 
     // Mode buttons — two rows of 4 (row1 = A-weighted, row2 = C-weighted)
     const int mBW=96, mBH=22, mBGapX=6, mBGapY=4;

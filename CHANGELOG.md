@@ -12,6 +12,13 @@ verzování je [semantické](https://semver.org/lang/cs/): **MAJOR.MINOR.PATCH**
 
 ## [Nezveřejněno]
 
+## [0.3.0] – 2026-06-16
+### Přidáno
+- Presety: tlačítka SAVE / LOAD v hlavičce ukládají a načítají nastavení do souboru
+  (`*.m3kpreset` ve složce Dokumenty\M3K Normalizator Presets). Načtení se aplikuje
+  jen na danou instanci — presety ani instance se nemíchají.
+- Verze přesunuta do levého dolního rohu (uvolnění místa pro SAVE/LOAD).
+
 ## [0.2.9] – 2026-06-16
 ### Přidáno
 - Kliknutím na kolečko LRA IN nebo LRA OUT se vynuluje příslušné LRA měření

@@ -51,6 +51,10 @@ private:
     juce::ToggleButton normalizeButton { "NORMALIZE" };
     juce::TextButton   modeButtons[8];
     juce::TextButton   resetButton { "RESET I" };
+    juce::TextButton   saveButton  { "SAVE" };
+    juce::TextButton   loadButton  { "LOAD" };
+    std::unique_ptr<juce::FileChooser> chooser;
+    juce::File presetDir();
 
     using SliderAttachment = juce::AudioProcessorValueTreeState::SliderAttachment;
     using ButtonAttachment = juce::AudioProcessorValueTreeState::ButtonAttachment;

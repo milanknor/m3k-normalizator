@@ -30,6 +30,19 @@ public:
     void getStateInformation(juce::MemoryBlock& destData) override;
     void setStateInformation(const void* data, int sizeInBytes) override;
 
+    // ---- Presets (per-instance; loading affects only this instance) ----
+    void savePreset(const juce::File& f)
+    {
+        if (auto xml = apvts.copyState().createXml())
+            xml->writeTo(f);
+    }
+    void loadPreset(const juce::File& f)
+    {
+        if (auto xml = juce::XmlDocument::parse(f))
+            if (xml->hasTagName(apvts.state.getType()))
+                apvts.replaceState(juce::ValueTree::fromXml(*xml));
+    }
+
     juce::AudioProcessorValueTreeState apvts;
 
     // Metering — written from audio thread, read from GUI
