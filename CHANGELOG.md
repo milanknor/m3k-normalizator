@@ -12,6 +12,12 @@ verzování je [semantické](https://semver.org/lang/cs/): **MAJOR.MINOR.PATCH**
 
 ## [Nezveřejněno]
 
+## [0.2.4] – 2026-06-16
+### Změněno
+- Odstraněno diagnostické logování — pumpování i nápory ověřeny jako vyřešené
+  (gain stabilní, limiter jen mírně a legitimně ořezává špičky u hlasitých cílů).
+  Plugin už nezapisuje na disk.
+
 ## [0.2.3] – 2026-06-16
 ### Opraveno (nalezeno v logu, ověřeno sim_pump2.py)
 - Pumpování i v režimu Momentary (a obecně): momentary klesá v tichých pasážích →
