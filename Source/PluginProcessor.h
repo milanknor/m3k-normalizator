@@ -105,8 +105,11 @@ private:
     // Smoothed normGain (prevents clicks on target changes)
     double normGainSmooth = 1.0;
 
-    // Safety output ceiling (peak limiter) gain-reduction state
+    // Safety output ceiling — lookahead peak limiter
     double limGain = 1.0;
+    juce::AudioBuffer<float> limDelay;   // lookahead delay line
+    int    limWritePos  = 0;
+    int    limLookahead = 0;
 
     // How many consecutive non-silent samples — gates boosting until the
     // measurement window is filled with real signal (prevents post-pause bursts)

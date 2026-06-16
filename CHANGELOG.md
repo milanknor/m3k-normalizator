@@ -12,6 +12,13 @@ verzování je [semantické](https://semver.org/lang/cs/): **MAJOR.MINOR.PATCH**
 
 ## [Nezveřejněno]
 
+## [0.2.6] – 2026-06-16
+### Změněno
+- Vyhlazení limiteru při vysokém targetu: nahrazen okamžitý peak-limiter **lookahead
+  limiterem** (~1,5 ms). Zisk teď plynule sjede před špičkou místo skokového slámování
+  po samplech → konec „roztřeseného" zvuku při silném zesílení. (Přidává 1,5 ms latenci,
+  hostitel ji kompenzuje.) Logování zatím ponecháno.
+
 ## [0.2.5] – 2026-06-16
 ### Přidáno (dočasné — diagnostika)
 - Znovu zapnuto diagnostické logování (`Dokumenty\M3K_Normalizator_log.txt`) kvůli

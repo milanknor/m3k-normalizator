@@ -169,6 +169,11 @@ void M3KNormalizatorProcessor::prepareToPlay(double sampleRate, int samplesPerBl
 
     normGainSmooth = 1.0;
     limGain = 1.0;
+    limLookahead = std::max(1, (int)(sampleRate * 0.0015)); // ~1.5 ms lookahead
+    limDelay.setSize(2, limLookahead, false, true, false);
+    limDelay.clear();
+    limWritePos = 0;
+    setLatencySamples(limLookahead);
     activeSamples = 0;
     silentSamples = 0;
     vuInLevel[0]=vuInLevel[1]=vuOutLevel[0]=vuOutLevel[1]=0.0;
@@ -410,10 +415,12 @@ void M3KNormalizatorProcessor::processBlock(juce::AudioBuffer<float>& buffer, ju
     for (int ch = 0; ch < numChannels; ++ch)
         buffer.applyGain(ch, 0, numSamples, (float)normGainSmooth);
 
-    // ---- Safety output ceiling (stereo-linked peak limiter) ----
-    // Instant attack guarantees no sample exceeds the ceiling; gentle release.
-    const double ceiling    = juce::Decibels::decibelsToGain(-1.0); // -1 dBFS
-    const double limRelease = std::exp(-1.0 / (sampleRate_ * 0.100)); // ~100 ms
+    // ---- Safety output ceiling (stereo-linked lookahead limiter) ----
+    // The gain ramps down over the lookahead so it meets each peak smoothly instead
+    // of snapping per-sample — much smoother when pushed hard (e.g. high target).
+    const double ceiling  = juce::Decibels::decibelsToGain(-1.0); // -1 dBFS
+    const double atkCoeff = 1.0 - std::exp(-3.0 / (double)limLookahead);       // ramp over lookahead
+    const double relCoeff = 1.0 - std::exp(-(double)1.0 / (sampleRate_ * 0.15)); // ~150 ms release
     for (int i = 0; i < numSamples; ++i)
     {
         double peak = 0.0;
@@ -421,11 +428,18 @@ void M3KNormalizatorProcessor::processBlock(juce::AudioBuffer<float>& buffer, ju
             peak = std::max(peak, std::abs((double)buffer.getSample(ch, i)));
 
         double gReq = (peak > ceiling) ? ceiling / peak : 1.0;
-        if (gReq < limGain) limGain = gReq;                         // instant attack
-        else                limGain = limGain * limRelease + gReq * (1.0 - limRelease);
+        // Fast (but ramped) attack toward a needed reduction; slow release back up.
+        limGain += (gReq - limGain) * (gReq < limGain ? atkCoeff : relCoeff);
 
         for (int ch = 0; ch < numChannels; ++ch)
-            buffer.setSample(ch, i, (float)(buffer.getSample(ch, i) * limGain));
+        {
+            float in      = buffer.getSample(ch, i);
+            float delayed = limDelay.getSample(ch, limWritePos);
+            limDelay.setSample(ch, limWritePos, in);
+            // hard clip at 0 dBFS as a final backstop for any brief overshoot
+            buffer.setSample(ch, i, juce::jlimit(-1.0f, 1.0f, (float)(delayed * limGain)));
+        }
+        if (++limWritePos >= limLookahead) limWritePos = 0;
     }
 
     // ---- VU metering — measure per-channel output peak after gain ----
