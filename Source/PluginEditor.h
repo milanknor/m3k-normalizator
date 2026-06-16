@@ -13,7 +13,7 @@ public:
 
 private:
     // Window kept compact; controls at original size, graph/VU take the rest
-    static constexpr int kDesignW = 544, kDesignH = 496;
+    static constexpr int kDesignW = 544, kDesignH = 520;
     static constexpr float kUiScale = 1.0f;
 
     void timerCallback() override;
@@ -49,6 +49,7 @@ private:
 
     juce::Slider targetLufsSlider, releaseSlider, windowSlider, ceilingSlider;
     juce::ToggleButton normalizeButton { "NORMALIZE" };
+    juce::ToggleButton bypassButton    { "BYPASS" };
     juce::TextButton   modeButtons[8];
     juce::TextButton   resetButton  { "RESET I" };
     juce::TextButton   presetButton { "PRESET" };
@@ -61,7 +62,7 @@ private:
     using SliderAttachment = juce::AudioProcessorValueTreeState::SliderAttachment;
     using ButtonAttachment = juce::AudioProcessorValueTreeState::ButtonAttachment;
     std::unique_ptr<SliderAttachment> targetAttach, releaseAttach, windowAttach, ceilingAttach;
-    std::unique_ptr<ButtonAttachment> normAttach;
+    std::unique_ptr<ButtonAttachment> normAttach, bypassAttach;
 
     // Smoothed display values
     float dispM  = -70.f, dispS  = -70.f, dispI  = -70.f;
@@ -69,6 +70,7 @@ private:
     float dispVuInL = -70.f, dispVuInR = -70.f;
     float dispVuOutL = -70.f, dispVuOutR = -70.f;
     float dispLraIn = 0.f, dispLraOut = 0.f;
+    float dispGr = 0.f, dispOutInt = -70.f;
     unsigned int lastBlockCounter = 0; // detect when audio callbacks stop
 
     // Graph history — 60s at 30fps = 1800 pts, showing OUTPUT LUFS

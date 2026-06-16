@@ -162,6 +162,13 @@ M3KNormalizatorEditor::M3KNormalizatorEditor(M3KNormalizatorProcessor& p)
     ceilingAttach = std::make_unique<SliderAttachment>(processor.apvts,"ceiling",    ceilingSlider);
     normAttach    = std::make_unique<ButtonAttachment>(processor.apvts,"normalize",  normalizeButton);
 
+    bypassButton.setLookAndFeel(&laf);
+    bypassButton.setColour(juce::ToggleButton::textColourId,txtCol());
+    bypassButton.setColour(juce::ToggleButton::tickColourId,juce::Colour(0xFFFF6040));
+    bypassButton.setColour(juce::ToggleButton::tickDisabledColourId,dimCol());
+    canvas.addAndMakeVisible(bypassButton);
+    bypassAttach  = std::make_unique<ButtonAttachment>(processor.apvts,"bypass",     bypassButton);
+
     static const char* mnames[]={"Momentary","Short","Integrated","Custom",
                                  "Momentary C","Short C","Integrated C","Custom C"};
     for(int i=0;i<8;++i){
@@ -196,6 +203,7 @@ M3KNormalizatorEditor::~M3KNormalizatorEditor()
     normalizeButton .setLookAndFeel(nullptr);
     resetButton     .setLookAndFeel(nullptr);
     presetButton    .setLookAndFeel(nullptr);
+    bypassButton    .setLookAndFeel(nullptr);
     for(auto& b:modeButtons) b.setLookAndFeel(nullptr);
 }
 
@@ -307,6 +315,8 @@ void M3KNormalizatorEditor::timerCallback()
     vu(dispVuOutR, processor.vuOutputDbR.load());
     dispLraIn  = processor.lraInputLU .load();
     dispLraOut = processor.lraOutputLU.load();
+    sm(dispGr, processor.limGrDb.load());          // smoothed gain-reduction
+    dispOutInt = processor.outIntegratedLufs.load();
 
     // Graph stores OUTPUT LUFS = input LUFS + normGain
     float outM = juce::jlimit(-70.f,  6.f, dispM + dispNG);
@@ -505,22 +515,42 @@ void M3KNormalizatorEditor::paintCanvas(juce::Graphics& g)
     g.drawText("v" JucePlugin_VersionString, 6, kDesignH-12, 70, 11,
                juce::Justification::centredLeft);
 
-    // Current value strip
-    const int sY=48, sH=28, sw=(W-28)/4;
-    struct{float v;const char* l;juce::Colour c;} strips[]={
-        {dispM,"M",colM()},{dispS,"S",colS()},{dispI,"I",colI()},
-        {dispNG,"GAIN",dispNG>0?colM():juce::Colour(0xFFFF6040)}
+    // Current value strip (5 cells: M, S, I, GAIN, LIM gain-reduction)
+    const int sY=48, sH=28, sw=(W-28)/5;
+    struct{float v;const char* l;juce::Colour c;bool gain;bool gr;} strips[]={
+        {dispM,"M",colM(),false,false},{dispS,"S",colS(),false,false},{dispI,"I",colI(),false,false},
+        {dispNG,"GAIN",dispNG>0?colM():juce::Colour(0xFFFF6040),true,false},
+        {dispGr,"LIM",dispGr<-0.3f?juce::Colour(0xFFFF6040):dimCol(),false,true}
     };
-    for(int i=0;i<4;++i){
+    for(int i=0;i<5;++i){
         int sx=14+i*sw;
         g.setColour(juce::Colour(0xFF1A1A1A));
         g.fillRoundedRectangle((float)sx,(float)sY,(float)(sw-4),(float)sH,3);
         g.setFont(pf(8,true)); g.setColour(dimCol());
-        g.drawText(strips[i].l, sx+5,sY,22,sH,juce::Justification::centredLeft);
+        g.drawText(strips[i].l, sx+5,sY,24,sH,juce::Justification::centredLeft);
         g.setFont(pf(12,true)); g.setColour(strips[i].c);
-        juce::String val=strips[i].v<=-69.f?"-inf":
-            (i==3&&strips[i].v>0?"+":"")+juce::String(strips[i].v,1);
+        juce::String val;
+        if(strips[i].gr)        val = strips[i].v>-0.1f ? "0.0" : juce::String(strips[i].v,1);
+        else if(strips[i].v<=-69.f) val = "-inf";
+        else                    val = (strips[i].gain&&strips[i].v>0?"+":"")+juce::String(strips[i].v,1);
         g.drawText(val,sx,sY,sw-4,sH,juce::Justification::centred);
+    }
+
+    // Compliance indicator (status row, right side) — is OUTPUT integrated on target?
+    {
+        float tgt=*processor.apvts.getRawParameterValue("targetLufs");
+        float oi =dispOutInt;
+        juce::String txt; juce::Colour col;
+        if(oi<=-69.f){ txt="-- LU"; col=dimCol(); }
+        else {
+            float dev=oi-tgt;
+            if(std::abs(dev)<0.5f){ txt=juce::String::fromUTF8("\xE2\x9C\x93 V CILI"); col=juce::Colour(0xFF30C870); }
+            else { txt=(dev>0?"+":"")+juce::String(dev,1)+" LU"; col=std::abs(dev)<1.5f?amber():juce::Colour(0xFFFF6040); }
+        }
+        g.setFont(pf(8.5f,true)); g.setColour(dimCol());
+        g.drawText("VYSTUP vs CIL:", W-220, 80, 110, 20, juce::Justification::centredRight);
+        g.setColour(col); g.setFont(pf(11,true));
+        g.drawText(txt, W-104, 80, 90, 20, juce::Justification::centredRight);
     }
 
     // VU meters (stereo)
@@ -595,10 +625,13 @@ void M3KNormalizatorEditor::layoutCanvas()
     // PRESET menu — header, between title and Reset
     presetButton.setBounds(214, 12, 92, 20);
 
+    // Status row (below the value strip): BYPASS toggle (compliance drawn on the right)
+    bypassButton.setBounds(pad, 80, 96, 20);
+
     // Mode buttons — two rows of 4 (row1 = A-weighted, row2 = C-weighted)
     const int mBW=96, mBH=22, mBGapX=6, mBGapY=4;
     const int mTW=4*mBW+3*mBGapX, mStartX=(W-mTW)/2;
-    const int modeY=48+28+8;
+    const int modeY=106;
     for(int i=0;i<8;++i){
         int row=i/4, col=i%4;
         modeButtons[i].setBounds(mStartX+col*(mBW+mBGapX),

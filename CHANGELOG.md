@@ -12,6 +12,17 @@ verzování je [semantické](https://semver.org/lang/cs/): **MAJOR.MINOR.PATCH**
 
 ## [Nezveřejněno]
 
+## [0.5.0] – 2026-06-16
+### Přidáno
+- **True-peak limiter** — limiter nově běží ve 4× oversamplingu, takže hlídá i
+  mezivzorkové (true-peak) špičky → soulad s dBTP normami i před převodem do MP3/AAC.
+  (Přidává malou latenci, hostitel ji kompenzuje.)
+- **Gain-reduction měřič** (buňka „LIM" v horním pruhu) — kolik dB limiter právě ubírá.
+- **Compliance indikátor** — vpravo ve status řádku „VÝSTUP vs CÍL": zelená „✓ V CÍLI"
+  když výstupní Integrated sedí na cíl (±0,5 LU), jinak odchylka v LU (žlutá/červená).
+- **BYPASS** přepínač (status řádek vlevo, i jako host-bypass) — A/B porovnání originálu.
+- Horní pruh rozšířen na 5 buněk (M, S, I, GAIN, LIM), okno o něco vyšší.
+
 ## [0.4.2] – 2026-06-16
 ### Změněno
 - Všechna kolečka dole (4 knoby + 2 LRA políčka) mají nyní stejný průměr (64 px).

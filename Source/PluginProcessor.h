@@ -15,6 +15,10 @@ public:
 
     juce::AudioProcessorEditor* createEditor() override;
     bool hasEditor() const override { return true; }
+    juce::AudioProcessorParameter* getBypassParameter() const override
+    {
+        return apvts.getParameter("bypass");
+    }
 
     const juce::String getName() const override { return JucePlugin_Name; }
     bool acceptsMidi() const override { return false; }
@@ -56,6 +60,8 @@ public:
     std::atomic<float> vuOutputDbR    { -70.0f };
     std::atomic<float> lraInputLU     {   0.0f };
     std::atomic<float> lraOutputLU    {   0.0f };
+    std::atomic<float> limGrDb        {   0.0f }; // limiter gain reduction (<=0)
+    std::atomic<float> outIntegratedLufs { -70.0f }; // output integrated (for compliance)
     std::atomic<unsigned int> blockCounter { 0 }; // heartbeat: incremented each processBlock
 
     // Row 1 = A-weighted, Row 2 = C-weighted
@@ -129,9 +135,12 @@ private:
     // Smoothed normGain (prevents clicks on target changes)
     double normGainSmooth = 1.0;
 
-    // Safety output ceiling — lookahead peak limiter
+    // Safety output ceiling — oversampled (true-peak) lookahead limiter
+    std::unique_ptr<juce::dsp::Oversampling<float>> oversampler;
+    int    osChannels   = 2;
+    double osRate       = 176400.0;
     double limGain = 1.0;
-    juce::AudioBuffer<float> limDelay;   // lookahead delay line
+    juce::AudioBuffer<float> limDelay;   // lookahead delay line (oversampled domain)
     int    limWritePos  = 0;
     int    limLookahead = 0;
 
