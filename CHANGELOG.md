@@ -12,6 +12,14 @@ verzování je [semantické](https://semver.org/lang/cs/): **MAJOR.MINOR.PATCH**
 
 ## [Nezveřejněno]
 
+## [0.2.3] – 2026-06-16
+### Opraveno (nalezeno v logu, ověřeno sim_pump2.py)
+- Pumpování i v režimu Momentary (a obecně): momentary klesá v tichých pasážích →
+  boost honil propad až na +18 dB → limiter slámoval. Boost-cap dle momentary (0.2.2)
+  tu nepomohl (ref = momentary). Nyní je boost omezen **Integrated** hlasitostí (stabilní
+  celková úroveň stopy, +3 dB) → boost dotahuje stopu na target, ne každý tichý moment.
+  Ověřeno: peak boost +12,4 → +7,0 dB, tichá stopa pořád dojede na +12 dB.
+
 ## [0.2.2] – 2026-06-16
 ### Opraveno (nalezeno v logu, ověřeno simulací sim_pump.py)
 - Pumpování v režimu Custom s krátkým oknem + rychlým Speed: měřicí okno chytalo tiché

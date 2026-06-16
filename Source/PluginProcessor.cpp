@@ -375,12 +375,14 @@ void M3KNormalizatorProcessor::processBlock(juce::AudioBuffer<float>& buffer, ju
             }
             else if (diffDb > 0.0)
             {
-                // Don't chase brief quiet dips (e.g. a short Custom window catching
-                // gaps between beats): cap the boost by the stable 400 ms momentary
-                // loudness so the gain can't spike and pump the limiter.
-                const double momLoud = isC ? cMom : kMom;
-                if (momLoud > -69.0)
-                    diffDb = std::min(diffDb, (double)target - momLoud + 3.0);
+                // Cap the boost by the stable per-track Integrated loudness so the
+                // gain can't chase quiet passages/gaps upward and pump the limiter.
+                // Boost should bring the whole track to target, not every quiet
+                // moment. (No-op in Integrated mode, where ref already is integrated.)
+                const double    intLoud = isC ? cInt      : kInt;
+                const long long ic      = isC ? cIntCount : kIntCount;
+                if (ic > intMin && intLoud > -69.0)
+                    diffDb = std::min(diffDb, (double)target - intLoud + 3.0);
                 diffDb = std::max(0.0, diffDb);
             }
             diffDb = juce::jlimit(-40.0, 24.0, diffDb);      // boost capped at +24 dB
