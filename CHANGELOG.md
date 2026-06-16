@@ -12,6 +12,11 @@ verzování je [semantické](https://semver.org/lang/cs/): **MAJOR.MINOR.PATCH**
 
 ## [Nezveřejněno]
 
+## [0.5.3] – 2026-06-16
+### Změněno
+- Zapnuto **LTO** (link-time optimization) — VST3 zmenšeno z 8,2 na 7,1 MB a o kousek
+  rychlejší kód. Export VST3 (moduleinfo.json) ověřen jako funkční.
+
 ## [0.5.2] – 2026-06-16
 ### Změněno
 - Vendor/Company pluginu změněn na **Milan Knor** (i copyright v About okně).

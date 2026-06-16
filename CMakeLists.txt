@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(M3KNormalizator VERSION 0.5.2)
+project(M3KNormalizator VERSION 0.5.3)
 
 set(CMAKE_CXX_STANDARD 17)
 
@@ -41,4 +41,5 @@ target_link_libraries(M3KNormalizator PRIVATE
     PUBLIC
     juce::juce_recommended_config_flags
     juce::juce_recommended_warning_flags
+    juce::juce_recommended_lto_flags
 )
