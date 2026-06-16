@@ -20,18 +20,20 @@ private:
     void paintCanvas(juce::Graphics& g);
     void layoutCanvas();
     void canvasClicked(juce::Point<int> p);
+    juce::String tooltipForPoint(juce::Point<int> p);
     const juce::Rectangle<int> logoBounds { 10, 3, 40, 40 };
     void drawGraph(juce::Graphics& g, juce::Rectangle<int> bounds);
     void drawVuMeter(juce::Graphics& g, juce::Rectangle<int> bounds,
                      float dbL, float dbR, const juce::String& label);
 
     // Inner component holding the whole UI at design size (transformed by kUiScale)
-    struct Canvas : public juce::Component
+    struct Canvas : public juce::Component, public juce::TooltipClient
     {
         M3KNormalizatorEditor& ed;
         explicit Canvas(M3KNormalizatorEditor& e) : ed(e) {}
         void paint(juce::Graphics& g) override   { ed.paintCanvas(g); }
         void resized() override                  { ed.layoutCanvas(); }
+        juce::String getTooltip() override       { return ed.tooltipForPoint(getMouseXYRelative()); }
         void mouseDown(const juce::MouseEvent& e) override { ed.canvasClicked(e.getPosition()); }
         void mouseMove(const juce::MouseEvent& e) override
         {

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(M3KNormalizator VERSION 0.5.1)
+project(M3KNormalizator VERSION 0.5.2)
 
 set(CMAKE_CXX_STANDARD 17)
 
@@ -9,7 +9,7 @@ set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 add_subdirectory(JUCE)
 
 juce_add_plugin(M3KNormalizator
-    COMPANY_NAME "MilanAudio"
+    COMPANY_NAME "Milan Knor"
     PLUGIN_MANUFACTURER_CODE Mlan
     PLUGIN_CODE M3kn
     FORMATS VST3 Standalone

@@ -50,7 +50,7 @@ struct AboutComponent : public juce::Component
         g.setColour(dimCol()); g.setFont(pf(9));
         g.drawText("LUFS normalizace  -  EBU R128 / IEC 61672",
                    0,160,getWidth(),14, juce::Justification::centred);
-        g.drawText(juce::String::fromUTF8("(c) MilanAudio"),
+        g.drawText(juce::String::fromUTF8("(c) Milan Knor"),
                    0,174,getWidth(),14, juce::Justification::centred);
     }
 };
@@ -300,6 +300,33 @@ void M3KNormalizatorEditor::showPresetMenu()
                     });
             }
         });
+}
+
+juce::String M3KNormalizatorEditor::tooltipForPoint(juce::Point<int> p)
+{
+    auto U=[](const char* s){ return juce::String::fromUTF8(s); };
+    // Value strip cells (M, S, I, GAIN, LIM)
+    if(p.y>=48 && p.y<48+28 && p.x>=14)
+    {
+        int sw=(kDesignW-28)/5, i=(p.x-14)/sw;
+        switch(i){
+            case 0: return U("Momentary loudness – aktualni hlasitost za 400 ms.");
+            case 1: return U("Short-term loudness – hlasitost za poslednie 3 s.");
+            case 2: return U("Integrated loudness – prumer od resetu (cela stopa).");
+            case 3: return U("GAIN – kolik dB prave pridava/ubira normalizace.");
+            case 4: return U("LIM – kolik dB prave ubira limiter (gain reduction).");
+        }
+    }
+    if(vuInBounds .contains(p)) return U("Vstupni VU metr (peak, L/R) pred zpracovanim.");
+    if(vuOutBounds.contains(p)) return U("Vystupni VU metr (peak, L/R) po normalizaci a limiteru.");
+    if(lraInBadge .contains(p)) return U("LRA vstupu (rozsah dynamiky, EBU 3342). Klik = vynulovat.");
+    if(lraOutBadge.contains(p)) return U("LRA vystupu (rozsah dynamiky). Klik = vynulovat.");
+    juce::Rectangle<int> led(vuOutBounds.getX()-6, vuOutBounds.getY()-42,
+                             vuOutBounds.getWidth()+12, 42);
+    if(led.contains(p)) return U("Kontrolka: jestli vystupni Integrated sedi na cil (zelena = v cili).");
+    if(graphBounds.contains(p)) return U("Prubeh hlasitosti za 60 s (M/S/I) vuci cilove urovni.");
+    if(logoBounds .contains(p)) return U("O aplikaci (logo, verze).");
+    return {};
 }
 
 void M3KNormalizatorEditor::canvasClicked(juce::Point<int> p)

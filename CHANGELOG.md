@@ -12,6 +12,13 @@ verzování je [semantické](https://semver.org/lang/cs/): **MAJOR.MINOR.PATCH**
 
 ## [Nezveřejněno]
 
+## [0.5.2] – 2026-06-16
+### Změněno
+- Vendor/Company pluginu změněn na **Milan Knor** (i copyright v About okně).
+### Přidáno
+- **České tooltipy i nad indikátory** (M/S/I/GAIN/LIM pruh, VU metry, LRA, graf,
+  kontrolka cíle, logo) — nájezdem myši.
+
 ## [0.5.1] – 2026-06-16
 ### Změněno
 - Ovladač **Ceiling přejmenován na Limiter**.
