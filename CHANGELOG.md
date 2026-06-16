@@ -12,6 +12,14 @@ verzování je [semantické](https://semver.org/lang/cs/): **MAJOR.MINOR.PATCH**
 
 ## [Nezveřejněno]
 
+## [0.2.2] – 2026-06-16
+### Opraveno (nalezeno v logu, ověřeno simulací sim_pump.py)
+- Pumpování v režimu Custom s krátkým oknem + rychlým Speed: měřicí okno chytalo tiché
+  mezery mezi beaty (ref padal až na -36 LUFS) → boost vyletěl na +24 dB → limiter
+  slámoval (lim 0,50, stovky zásahů). Nyní je boost omezen stabilní 400ms Momentary
+  hlasitostí (+3 dB) → gain se drží klidně, žádné pumpování. (Ověřeno: +23,7 → +7,6 dB.)
+  Netýká se cutu ani normálního boostu tiché stopy.
+
 ## [0.2.1] – 2026-06-16
 ### Přidáno (dočasné — diagnostika)
 - Vráceno diagnostické logování (`Dokumenty\M3K_Normalizator_log.txt`) kvůli ladění
