@@ -412,7 +412,7 @@ void M3KNormalizatorProcessor::processBlock(juce::AudioBuffer<float>& buffer, ju
     // ---- Safety output ceiling (stereo-linked lookahead limiter) ----
     // The gain ramps down over the lookahead so it meets each peak smoothly instead
     // of snapping per-sample — much smoother when pushed hard (e.g. high target).
-    const double ceiling  = juce::Decibels::decibelsToGain(-1.0); // -1 dBFS
+    const double ceiling  = juce::Decibels::decibelsToGain(-0.3); // -0.3 dBFS (max loud)
     const double atkCoeff = 1.0 - std::exp(-3.0 / (double)limLookahead);       // ramp over lookahead
     const double relCoeff = 1.0 - std::exp(-(double)1.0 / (sampleRate_ * 0.15)); // ~150 ms release
     for (int i = 0; i < numSamples; ++i)
