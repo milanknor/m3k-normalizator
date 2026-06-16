@@ -61,6 +61,17 @@ public:
         lraOutputLU.store(0.0f);
     }
 
+    void resetLraInput()
+    {
+        std::fill(std::begin(lraHistIn), std::end(lraHistIn), 0LL);
+        lraInputLU.store(0.0f);
+    }
+    void resetLraOutput()
+    {
+        std::fill(std::begin(lraHistOut), std::end(lraHistOut), 0LL);
+        lraOutputLU.store(0.0f);
+    }
+
 private:
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
 

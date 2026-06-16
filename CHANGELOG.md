@@ -12,6 +12,11 @@ verzování je [semantické](https://semver.org/lang/cs/): **MAJOR.MINOR.PATCH**
 
 ## [Nezveřejněno]
 
+## [0.2.9] – 2026-06-16
+### Přidáno
+- Kliknutím na kolečko LRA IN nebo LRA OUT se vynuluje příslušné LRA měření
+  (nad kolečky se zobrazí ručička).
+
 ## [0.2.8] – 2026-06-16
 ### Změněno
 - Strop limiteru zvednut z −1 dBFS na **−0,3 dBFS** — maximální hlasitost na hraně.

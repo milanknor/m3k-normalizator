@@ -35,9 +35,12 @@ private:
         void mouseDown(const juce::MouseEvent& e) override { ed.canvasClicked(e.getPosition()); }
         void mouseMove(const juce::MouseEvent& e) override
         {
-            setMouseCursor(ed.logoBounds.contains(e.getPosition())
-                           ? juce::MouseCursor::PointingHandCursor
-                           : juce::MouseCursor::NormalCursor);
+            auto p = e.getPosition();
+            bool clickable = ed.logoBounds.contains(p)
+                          || ed.lraInBadge.contains(p)
+                          || ed.lraOutBadge.contains(p);
+            setMouseCursor(clickable ? juce::MouseCursor::PointingHandCursor
+                                     : juce::MouseCursor::NormalCursor);
         }
     };
     Canvas canvas { *this };

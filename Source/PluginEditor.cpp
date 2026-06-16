@@ -193,9 +193,13 @@ M3KNormalizatorEditor::~M3KNormalizatorEditor()
 
 void M3KNormalizatorEditor::canvasClicked(juce::Point<int> p)
 {
-    if(!logoBounds.contains(p)) return;   // only the logo opens the About box
-    auto content = std::make_unique<AboutComponent>();
-    juce::CallOutBox::launchAsynchronously(std::move(content), logoBounds, &canvas);
+    if(lraInBadge.contains(p))  { processor.resetLraInput();  return; } // reset LRA IN
+    if(lraOutBadge.contains(p)) { processor.resetLraOutput(); return; } // reset LRA OUT
+    if(logoBounds.contains(p))             // logo opens the About box
+    {
+        auto content = std::make_unique<AboutComponent>();
+        juce::CallOutBox::launchAsynchronously(std::move(content), logoBounds, &canvas);
+    }
 }
 
 void M3KNormalizatorEditor::timerCallback()
