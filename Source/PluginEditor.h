@@ -55,7 +55,7 @@ private:
     std::unique_ptr<juce::FileChooser> chooser;
     juce::File presetDir();
     void showPresetMenu();
-    void applyFactoryPreset(float lufs, float ceiling);
+    void applyFactoryPreset(float lufs, float ceiling, float speed);
     void setParam(const juce::String& id, float value);
 
     using SliderAttachment = juce::AudioProcessorValueTreeState::SliderAttachment;

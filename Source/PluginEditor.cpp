@@ -213,24 +213,25 @@ void M3KNormalizatorEditor::setParam(const juce::String& id, float value)
         p->setValueNotifyingHost(processor.apvts.getParameterRange(id).convertTo0to1(value));
 }
 
-void M3KNormalizatorEditor::applyFactoryPreset(float lufs, float ceiling)
+void M3KNormalizatorEditor::applyFactoryPreset(float lufs, float ceiling, float speed)
 {
     setParam("targetLufs", lufs);
     setParam("ceiling",    ceiling);
+    setParam("releaseMs",  speed);  // plynulá adaptace pro normalizaci
     setParam("mode",       2.0f);   // Integrated (standardní pro normy)
     setParam("normalize",  1.0f);   // zapnout
 }
 
 void M3KNormalizatorEditor::showPresetMenu()
 {
-    struct FP { const char* name; float lufs; float ceil; };
-    static const FP stream[]={{"Spotify  (-14)",-14,-1},{"Spotify Loud  (-11)",-11,-1},
-        {"Apple Music  (-16)",-16,-1},{"YouTube  (-14)",-14,-1},{"Amazon Music  (-14)",-14,-1},
-        {"Tidal  (-14)",-14,-1},{"Deezer  (-15)",-15,-1}};
-    static const FP broad[]={{"EBU R128  (-23)",-23,-1},{"ATSC A/85  (-24)",-24,-2},
-        {"TR-B32  (-24)",-24,-1}};
-    static const FP pod[]={{"Podcast  (-16)",-16,-1},{"Mluvene slovo  (-19)",-19,-1}};
-    static const FP club[]={{"Klub / DJ max  (-8)",-8,-1},{"Na doraz  (-6)",-6,-0.3f}};
+    struct FP { const char* name; float lufs; float ceil; float speed; };
+    static const FP stream[]={{"Spotify  (-14)",-14,-1,1000},{"Spotify Loud  (-11)",-11,-1,1000},
+        {"Apple Music  (-16)",-16,-1,1000},{"YouTube  (-14)",-14,-1,1000},{"Amazon Music  (-14)",-14,-1,1000},
+        {"Tidal  (-14)",-14,-1,1000},{"Deezer  (-15)",-15,-1,1000}};
+    static const FP broad[]={{"EBU R128  (-23)",-23,-1,1500},{"ATSC A/85  (-24)",-24,-2,1500},
+        {"TR-B32  (-24)",-24,-1,1500}};
+    static const FP pod[]={{"Podcast  (-16)",-16,-1,1200},{"Mluvene slovo  (-19)",-19,-1,1200}};
+    static const FP club[]={{"Klub / DJ max  (-8)",-8,-1,500},{"Na doraz  (-6)",-6,-0.3f,300}};
 
     juce::PopupMenu menu, mS, mB, mP, mC;
     std::vector<FP> all;
@@ -251,7 +252,7 @@ void M3KNormalizatorEditor::showPresetMenu()
         [this,all](int r)
         {
             if(r>=1 && r<=(int)all.size())
-                applyFactoryPreset(all[r-1].lufs, all[r-1].ceil);
+                applyFactoryPreset(all[r-1].lufs, all[r-1].ceil, all[r-1].speed);
             else if(r==1000)
             {
                 chooser=std::make_unique<juce::FileChooser>("Uložit preset",presetDir(),"*.m3kpreset");

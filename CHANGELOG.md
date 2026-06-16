@@ -12,6 +12,11 @@ verzování je [semantické](https://semver.org/lang/cs/): **MAJOR.MINOR.PATCH**
 
 ## [Nezveřejněno]
 
+## [0.4.1] – 2026-06-16
+### Změněno
+- Tovární předvolby nově nastavují i **Speed** (streaming 1000 ms, broadcast 1500 ms,
+  podcast 1200 ms, klub/DJ 500/300 ms) — předvolba je teď kompletní a předvídatelná.
+
 ## [0.4.0] – 2026-06-16
 ### Přidáno
 - Tovární předvolby podle standardů (menu PRESET): Streaming (Spotify, Apple Music,
