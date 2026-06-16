@@ -15,10 +15,6 @@ public:
 
     juce::AudioProcessorEditor* createEditor() override;
     bool hasEditor() const override { return true; }
-    juce::AudioProcessorParameter* getBypassParameter() const override
-    {
-        return apvts.getParameter("bypass");
-    }
 
     const juce::String getName() const override { return JucePlugin_Name; }
     bool acceptsMidi() const override { return false; }

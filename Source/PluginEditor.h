@@ -13,7 +13,7 @@ public:
 
 private:
     // Window kept compact; controls at original size, graph/VU take the rest
-    static constexpr int kDesignW = 544, kDesignH = 520;
+    static constexpr int kDesignW = 544, kDesignH = 496;
     static constexpr float kUiScale = 1.0f;
 
     void timerCallback() override;
@@ -49,7 +49,7 @@ private:
 
     juce::Slider targetLufsSlider, releaseSlider, windowSlider, ceilingSlider;
     juce::ToggleButton normalizeButton { "NORMALIZE" };
-    juce::ToggleButton bypassButton    { "BYPASS" };
+    juce::TooltipWindow tooltips { this, 600 };
     juce::TextButton   modeButtons[8];
     juce::TextButton   resetButton  { "RESET I" };
     juce::TextButton   presetButton { "PRESET" };
@@ -62,7 +62,7 @@ private:
     using SliderAttachment = juce::AudioProcessorValueTreeState::SliderAttachment;
     using ButtonAttachment = juce::AudioProcessorValueTreeState::ButtonAttachment;
     std::unique_ptr<SliderAttachment> targetAttach, releaseAttach, windowAttach, ceilingAttach;
-    std::unique_ptr<ButtonAttachment> normAttach, bypassAttach;
+    std::unique_ptr<ButtonAttachment> normAttach;
 
     // Smoothed display values
     float dispM  = -70.f, dispS  = -70.f, dispI  = -70.f;

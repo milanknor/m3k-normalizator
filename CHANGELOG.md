@@ -12,6 +12,15 @@ verzování je [semantické](https://semver.org/lang/cs/): **MAJOR.MINOR.PATCH**
 
 ## [Nezveřejněno]
 
+## [0.5.1] – 2026-06-16
+### Změněno
+- Ovladač **Ceiling přejmenován na Limiter**.
+- **Odstraněn BYPASS** přepínač.
+- Compliance „výstup vs cíl" je nyní **barevná kontrolka (LED) nad pravým VU metrem**
+  — zelená = v cíli (±0,5 LU), žlutá = blízko, červená = mimo, šedá = bez dat.
+### Přidáno
+- **České tooltipy** při nájezdu myší na ovladače a tlačítka.
+
 ## [0.5.0] – 2026-06-16
 ### Přidáno
 - **True-peak limiter** — limiter nově běží ve 4× oversamplingu, takže hlídá i

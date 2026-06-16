@@ -21,15 +21,12 @@ juce::AudioProcessorValueTreeState::ParameterLayout M3KNormalizatorProcessor::cr
         juce::AudioParameterFloatAttributes().withLabel("ms")));
 
     layout.add(std::make_unique<juce::AudioParameterFloat>(
-        "ceiling", "Ceiling",
+        "ceiling", "Limiter",
         juce::NormalisableRange<float>(-6.0f, 0.0f, 0.1f), -0.3f,
         juce::AudioParameterFloatAttributes().withLabel("dBFS")));
 
     layout.add(std::make_unique<juce::AudioParameterBool>(
         "normalize", "Auto Normalize", true));
-
-    layout.add(std::make_unique<juce::AudioParameterBool>(
-        "bypass", "Bypass", false));
 
     layout.add(std::make_unique<juce::AudioParameterChoice>(
         "mode", "Mode",
@@ -212,7 +209,6 @@ void M3KNormalizatorProcessor::processBlock(juce::AudioBuffer<float>& buffer, ju
 
     blockCounter.fetch_add(1, std::memory_order_relaxed); // heartbeat for the GUI
 
-    const bool  bypass     = *apvts.getRawParameterValue("bypass") > 0.5f;
     const float target     = *apvts.getRawParameterValue("targetLufs");
     const float releaseMs  = *apvts.getRawParameterValue("releaseMs");
     const float customMs   = *apvts.getRawParameterValue("customMs");
@@ -419,53 +415,46 @@ void M3KNormalizatorProcessor::processBlock(juce::AudioBuffer<float>& buffer, ju
     const double coeff = (targetNormGain < normGainSmooth)
                          ? (cutOnly ? warmCoeff : downCoeff)
                          : smoothCoeff;
-    if (bypass) { targetNormGain = 1.0; normGainSmooth = 1.0; }
     normGainSmooth = normGainSmooth * coeff + targetNormGain * (1.0 - coeff);
-    if (bypass) normGainSmooth = 1.0;
-    normGainDb.store(bypass ? 0.0f : juce::Decibels::gainToDecibels((float)normGainSmooth));
+    normGainDb.store(juce::Decibels::gainToDecibels((float)normGainSmooth));
 
-    float limGr = 0.0f;
-    if (!bypass)
+    // ---- Apply normalization gain ----
+    for (int ch = 0; ch < numChannels; ++ch)
+        buffer.applyGain(ch, 0, numSamples, (float)normGainSmooth);
+
+    // ---- True-peak limiter: oversample 4x, limit, downsample ----
+    const double ceiling  = juce::Decibels::decibelsToGain(
+                                (float)*apvts.getRawParameterValue("ceiling"));
+    const double atkCoeff = 1.0 - std::exp(-3.0 / (double)limLookahead);
+    const double relCoeff = 1.0 - std::exp(-(double)1.0 / (osRate * 0.15)); // ~150 ms
+
+    double minGain = 1.0;
+    if (oversampler != nullptr && numChannels == osChannels)
     {
-        // ---- Apply normalization gain ----
-        for (int ch = 0; ch < numChannels; ++ch)
-            buffer.applyGain(ch, 0, numSamples, (float)normGainSmooth);
-
-        // ---- True-peak limiter: oversample 4x, limit, downsample ----
-        const double ceiling  = juce::Decibels::decibelsToGain(
-                                    (float)*apvts.getRawParameterValue("ceiling"));
-        const double atkCoeff = 1.0 - std::exp(-3.0 / (double)limLookahead);
-        const double relCoeff = 1.0 - std::exp(-(double)1.0 / (osRate * 0.15)); // ~150 ms
-
-        double minGain = 1.0;
-        if (oversampler != nullptr && numChannels == osChannels)
+        juce::dsp::AudioBlock<float> block(buffer.getArrayOfWritePointers(),
+                                           (size_t)numChannels, (size_t)numSamples);
+        auto os = oversampler->processSamplesUp(block);
+        const int osN = (int)os.getNumSamples();
+        for (int i = 0; i < osN; ++i)
         {
-            juce::dsp::AudioBlock<float> block(buffer.getArrayOfWritePointers(),
-                                               (size_t)numChannels, (size_t)numSamples);
-            auto os = oversampler->processSamplesUp(block);
-            const int osN = (int)os.getNumSamples();
-            for (int i = 0; i < osN; ++i)
+            double peak = 0.0;
+            for (int ch = 0; ch < numChannels; ++ch)
+                peak = std::max(peak, std::abs((double)os.getSample(ch, i)));
+            double gReq = (peak > ceiling) ? ceiling / peak : 1.0;
+            limGain += (gReq - limGain) * (gReq < limGain ? atkCoeff : relCoeff);
+            for (int ch = 0; ch < numChannels; ++ch)
             {
-                double peak = 0.0;
-                for (int ch = 0; ch < numChannels; ++ch)
-                    peak = std::max(peak, std::abs((double)os.getSample(ch, i)));
-                double gReq = (peak > ceiling) ? ceiling / peak : 1.0;
-                limGain += (gReq - limGain) * (gReq < limGain ? atkCoeff : relCoeff);
-                for (int ch = 0; ch < numChannels; ++ch)
-                {
-                    float in      = os.getSample(ch, i);
-                    float delayed = limDelay.getSample(ch, limWritePos);
-                    limDelay.setSample(ch, limWritePos, in);
-                    os.setSample(ch, i, juce::jlimit(-1.0f, 1.0f, (float)(delayed * limGain)));
-                }
-                if (++limWritePos >= limLookahead) limWritePos = 0;
-                minGain = std::min(minGain, limGain);
+                float in      = os.getSample(ch, i);
+                float delayed = limDelay.getSample(ch, limWritePos);
+                limDelay.setSample(ch, limWritePos, in);
+                os.setSample(ch, i, juce::jlimit(-1.0f, 1.0f, (float)(delayed * limGain)));
             }
-            oversampler->processSamplesDown(block);
+            if (++limWritePos >= limLookahead) limWritePos = 0;
+            minGain = std::min(minGain, limGain);
         }
-        limGr = juce::Decibels::gainToDecibels((float)minGain, -60.0f);
+        oversampler->processSamplesDown(block);
     }
-    limGrDb.store(limGr);
+    limGrDb.store(juce::Decibels::gainToDecibels((float)minGain, -60.0f));
 
     // ---- VU metering — measure per-channel output peak after gain ----
     float outputPeak[2] = { 0.0f, 0.0f };
@@ -501,7 +490,7 @@ void M3KNormalizatorProcessor::processBlock(juce::AudioBuffer<float>& buffer, ju
         integratedLufs.store((float)inInt);
         // Output integrated ≈ input integrated + applied gain (for compliance check)
         outIntegratedLufs.store(inInt <= -69.0 ? -70.0f
-            : (float)(inInt + (bypass ? 0.0 : juce::Decibels::gainToDecibels((float)normGainSmooth))));
+            : (float)(inInt + juce::Decibels::gainToDecibels((float)normGainSmooth)));
     }
 
     // ---- Loudness Range — sample short-term loudness every 100 ms ----

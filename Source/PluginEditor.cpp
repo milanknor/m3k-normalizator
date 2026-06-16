@@ -162,12 +162,31 @@ M3KNormalizatorEditor::M3KNormalizatorEditor(M3KNormalizatorProcessor& p)
     ceilingAttach = std::make_unique<SliderAttachment>(processor.apvts,"ceiling",    ceilingSlider);
     normAttach    = std::make_unique<ButtonAttachment>(processor.apvts,"normalize",  normalizeButton);
 
-    bypassButton.setLookAndFeel(&laf);
-    bypassButton.setColour(juce::ToggleButton::textColourId,txtCol());
-    bypassButton.setColour(juce::ToggleButton::tickColourId,juce::Colour(0xFFFF6040));
-    bypassButton.setColour(juce::ToggleButton::tickDisabledColourId,dimCol());
-    canvas.addAndMakeVisible(bypassButton);
-    bypassAttach  = std::make_unique<ButtonAttachment>(processor.apvts,"bypass",     bypassButton);
+    // ---- České tooltipy (nájezd myší) ----
+    targetLufsSlider.setTooltip(juce::String::fromUTF8(
+        "Cilova hlasitost (LUFS) – na jakou prumernou loudness se signal normalizuje."));
+    releaseSlider.setTooltip(juce::String::fromUTF8(
+        "Speed – rychlost adaptace zisku. Nizsi = svizne, vyssi = klidne/plynule."));
+    windowSlider.setTooltip(juce::String::fromUTF8(
+        "Window – delka mericiho okna pro rezimy Custom (10–10000 ms)."));
+    ceilingSlider.setTooltip(juce::String::fromUTF8(
+        "Limiter – strop vystupnich spicek (dBFS, true-peak). Vystup nikdy neprekroci."));
+    normalizeButton.setTooltip(juce::String::fromUTF8(
+        "Zapnuti / vypnuti automaticke normalizace na cilovou hlasitost."));
+    resetButton.setTooltip(juce::String::fromUTF8(
+        "Vynuluje Integrated mereni i obe LRA (zacne pocitat znovu)."));
+    presetButton.setTooltip(juce::String::fromUTF8(
+        "Tovarni predvolby podle norem (Spotify, EBU R128…) + ulozeni/nacteni vlastnich."));
+    static const char* mtt[8]={
+        "Momentary – K-vazeni, okno 400 ms (rychla loudness).",
+        "Short – K-vazeni, okno 3 s.",
+        "Integrated – K-vazeni, prumer od resetu (standard pro normalizaci).",
+        "Custom – K-vazeni, vlastni okno (knob Window).",
+        "Momentary C – C-vazeni (IEC 61672), okno 400 ms.",
+        "Short C – C-vazeni, okno 3 s.",
+        "Integrated C – C-vazeni, prumer od resetu.",
+        "Custom C – C-vazeni, vlastni okno."};
+    for(int i=0;i<8;++i) modeButtons[i].setTooltip(juce::String::fromUTF8(mtt[i]));
 
     static const char* mnames[]={"Momentary","Short","Integrated","Custom",
                                  "Momentary C","Short C","Integrated C","Custom C"};
@@ -203,7 +222,6 @@ M3KNormalizatorEditor::~M3KNormalizatorEditor()
     normalizeButton .setLookAndFeel(nullptr);
     resetButton     .setLookAndFeel(nullptr);
     presetButton    .setLookAndFeel(nullptr);
-    bypassButton    .setLookAndFeel(nullptr);
     for(auto& b:modeButtons) b.setLookAndFeel(nullptr);
 }
 
@@ -536,21 +554,28 @@ void M3KNormalizatorEditor::paintCanvas(juce::Graphics& g)
         g.drawText(val,sx,sY,sw-4,sH,juce::Justification::centred);
     }
 
-    // Compliance indicator (status row, right side) — is OUTPUT integrated on target?
+    // Compliance light (LED) above the OUT VU meter — is OUTPUT integrated on target?
     {
         float tgt=*processor.apvts.getRawParameterValue("targetLufs");
         float oi =dispOutInt;
-        juce::String txt; juce::Colour col;
-        if(oi<=-69.f){ txt="-- LU"; col=dimCol(); }
+        juce::Colour col; juce::String sub;
+        if(oi<=-69.f){ col=juce::Colour(0xFF444444); sub="--"; }
         else {
             float dev=oi-tgt;
-            if(std::abs(dev)<0.5f){ txt=juce::String::fromUTF8("\xE2\x9C\x93 V CILI"); col=juce::Colour(0xFF30C870); }
-            else { txt=(dev>0?"+":"")+juce::String(dev,1)+" LU"; col=std::abs(dev)<1.5f?amber():juce::Colour(0xFFFF6040); }
+            if(std::abs(dev)<0.5f){ col=juce::Colour(0xFF30C870); sub="V CILI"; }
+            else if(std::abs(dev)<1.5f){ col=amber();             sub=(dev>0?"+":"")+juce::String(dev,1); }
+            else { col=juce::Colour(0xFFFF5030); sub=(dev>0?"+":"")+juce::String(dev,1); }
         }
-        g.setFont(pf(8.5f,true)); g.setColour(dimCol());
-        g.drawText("VYSTUP vs CIL:", W-220, 80, 110, 20, juce::Justification::centredRight);
-        g.setColour(col); g.setFont(pf(11,true));
-        g.drawText(txt, W-104, 80, 90, 20, juce::Justification::centredRight);
+        float cx=(float)vuOutBounds.getCentreX();
+        float cy=(float)vuOutBounds.getY()-26.f;
+        g.setColour(dimCol()); g.setFont(pf(7.5f,true));
+        g.drawText("CIL", (int)cx-24, (int)cy-16, 48, 9, juce::Justification::centred);
+        g.setColour(col.withAlpha(0.25f)); g.fillEllipse(cx-9,cy-9,18,18);   // glow
+        g.setColour(col);                  g.fillEllipse(cx-5.5f,cy-5.5f,11,11); // LED
+        g.setColour(juce::Colours::white.withAlpha(0.5f)); g.drawEllipse(cx-5.5f,cy-5.5f,11,11,1.f);
+        g.setColour(col); g.setFont(pf(8.f,true));
+        g.drawText(juce::String::fromUTF8(sub.toRawUTF8()), (int)cx-26, (int)cy+8, 52, 10,
+                   juce::Justification::centred);
     }
 
     // VU meters (stereo)
@@ -597,7 +622,7 @@ void M3KNormalizatorEditor::paintCanvas(juce::Graphics& g)
     const int kX=(W-(4*kW+3*kGap))/2;
     const int labelY=knobArea.getY()-23;       // shared baseline for all top labels
     const struct{const char* top,*unit;} kl[]=
-        {{"TARGET LUFS","LUFS"},{"SPEED","ms"},{"WINDOW","ms"},{"CEILING","dBFS"}};
+        {{"TARGET LUFS","LUFS"},{"SPEED","ms"},{"WINDOW","ms"},{"LIMITER","dBFS"}};
     for(int i=0;i<4;++i){
         int cx=kX+i*(kW+kGap)+kW/2;             // centre of this knob
         g.setFont(pf(9.5f,true)); g.setColour(txtCol());
@@ -625,13 +650,10 @@ void M3KNormalizatorEditor::layoutCanvas()
     // PRESET menu — header, between title and Reset
     presetButton.setBounds(214, 12, 92, 20);
 
-    // Status row (below the value strip): BYPASS toggle (compliance drawn on the right)
-    bypassButton.setBounds(pad, 80, 96, 20);
-
     // Mode buttons — two rows of 4 (row1 = A-weighted, row2 = C-weighted)
     const int mBW=96, mBH=22, mBGapX=6, mBGapY=4;
     const int mTW=4*mBW+3*mBGapX, mStartX=(W-mTW)/2;
-    const int modeY=106;
+    const int modeY=48+28+8;
     for(int i=0;i<8;++i){
         int row=i/4, col=i%4;
         modeButtons[i].setBounds(mStartX+col*(mBW+mBGapX),
