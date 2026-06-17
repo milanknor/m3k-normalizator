@@ -1,6 +1,9 @@
 # Build výstupy
 /build/
 
+# Interní poznámky pro AI asistenta (obsahuje osobní cesty)
+CLAUDE.md
+
 # JUCE framework (externí závislost — needrží se ve verzování projektu)
 /JUCE/
 
