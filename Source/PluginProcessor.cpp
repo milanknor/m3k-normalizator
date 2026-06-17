@@ -272,7 +272,8 @@ void M3KNormalizatorProcessor::processBlock(juce::AudioBuffer<float>& buffer, ju
     const bool signalPresent = isC ? cActive : kActive;
 
     // Track continuous-signal / silence length
-    if (signalPresent) { activeSamples += numSamples; silentSamples = 0; }
+    if (signalPresent) { activeSamples += numSamples; silentSamples = 0;
+                         integratedSamples.fetch_add(numSamples); }
     else               { activeSamples = 0; silentSamples += numSamples; }
 
     // After a real gap, reset Integrated — treat resume as a new track so a stale
@@ -324,6 +325,7 @@ void M3KNormalizatorProcessor::processBlock(juce::AudioBuffer<float>& buffer, ju
         sk /= (double)n; sc /= (double)n;
         kCustomVal = sk > 1e-10 ? -0.691+10.0*std::log10(sk) : -70.0;
         cCustomVal = sc > 1e-10 ? -0.691+10.0*std::log10(sc) : -70.0;
+        customLufs.store((float)(mode == kCustomC ? cCustomVal : kCustomVal));
     }
 
     // ---- Compute target normGain ----

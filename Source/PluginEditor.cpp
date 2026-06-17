@@ -5,7 +5,7 @@ static juce::Font pf(float sz, bool bold=false)
     return juce::Font(juce::FontOptions().withHeight(sz).withStyle(bold?"Bold":"Regular"));
 }
 static juce::Colour amber()  { return juce::Colour(0xFFE8A020); }
-static juce::Colour dimCol() { return juce::Colour(0xFF555555); }
+static juce::Colour dimCol() { return juce::Colour(0xFF888888); }
 static juce::Colour txtCol() { return juce::Colour(0xFFCCCCCC); }
 static juce::Colour colM()   { return juce::Colour(0xFF30C870); }
 static juce::Colour colS()   { return juce::Colour(0xFF2090FF); }
@@ -174,7 +174,7 @@ M3KNormalizatorEditor::M3KNormalizatorEditor(M3KNormalizatorProcessor& p)
     normalizeButton.setTooltip(juce::String::fromUTF8(
         "Zapnuti / vypnuti automaticke normalizace na cilovou hlasitost."));
     resetButton.setTooltip(juce::String::fromUTF8(
-        "Vynuluje Integrated mereni i obe LRA (zacne pocitat znovu)."));
+        "Vynuluje pouze Integrated mereni (zacne pocitat znovu od nuly)."));
     presetButton.setTooltip(juce::String::fromUTF8(
         "Tovarni predvolby podle norem (Spotify, EBU R128…) + ulozeni/nacteni vlastnich."));
     static const char* mtt[8]={
@@ -319,8 +319,8 @@ juce::String M3KNormalizatorEditor::tooltipForPoint(juce::Point<int> p)
     }
     if(vuInBounds .contains(p)) return U("Vstupni VU metr (peak, L/R) pred zpracovanim.");
     if(vuOutBounds.contains(p)) return U("Vystupni VU metr (peak, L/R) po normalizaci a limiteru.");
-    if(lraInBadge .contains(p)) return U("LRA vstupu (rozsah dynamiky, EBU 3342). Klik = vynulovat.");
-    if(lraOutBadge.contains(p)) return U("LRA vystupu (rozsah dynamiky). Klik = vynulovat.");
+    if(lraInBadge .contains(p)) return U("LRA vstupu (rozsah dynamiky, EBU 3342). Klik = vynulovat obe LRA.");
+    if(lraOutBadge.contains(p)) return U("LRA vystupu (rozsah dynamiky). Klik = vynulovat obe LRA.");
     juce::Rectangle<int> led(vuOutBounds.getX()-6, vuOutBounds.getY()-42,
                              vuOutBounds.getWidth()+12, 42);
     if(led.contains(p)) return U("Kontrolka: jestli vystupni Integrated sedi na cil (zelena = v cili).");
@@ -331,8 +331,12 @@ juce::String M3KNormalizatorEditor::tooltipForPoint(juce::Point<int> p)
 
 void M3KNormalizatorEditor::canvasClicked(juce::Point<int> p)
 {
-    if(lraInBadge.contains(p))  { processor.resetLraInput();  return; } // reset LRA IN
-    if(lraOutBadge.contains(p)) { processor.resetLraOutput(); return; } // reset LRA OUT
+    if(lraInBadge.contains(p) || lraOutBadge.contains(p))
+    {
+        processor.resetLraInput();
+        processor.resetLraOutput();
+        return;
+    }
     if(logoBounds.contains(p))             // logo opens the About box
     {
         auto content = std::make_unique<AboutComponent>();
@@ -391,7 +395,7 @@ void M3KNormalizatorEditor::drawVuMeter(juce::Graphics& g, juce::Rectangle<int> 
     g.drawRoundedRectangle(b.toFloat().reduced(.5f),4,1);
 
     // Label top
-    g.setFont(pf(8.5f,true)); g.setColour(dimCol());
+    g.setFont(pf(8.5f,true)); g.setColour(txtCol());
     g.drawText(label,b.withHeight(14),juce::Justification::centred);
 
     auto bars=b.reduced(3,16).withTrimmedBottom(12);
@@ -412,14 +416,12 @@ void M3KNormalizatorEditor::drawVuMeter(juce::Graphics& g, juce::Rectangle<int> 
         if(fillH>0)
         {
             auto fill=bar.withTop(bar.getBottom()-fillH);
-            // Gradient anchored to the WHOLE bar so colour reflects absolute level:
-            // green low, yellow approaching 0 dB, red only at the very top.
             juce::ColourGradient grad(
                 juce::Colour(0xFFFF2020), (float)bar.getX(), (float)bar.getY(),
                 juce::Colour(0xFF30C870), (float)bar.getX(), (float)bar.getBottom(), false);
-            grad.addColour(0.10, juce::Colour(0xFFFF2020)); // red down to ~0 dB
-            grad.addColour(0.20, juce::Colour(0xFFFFCC00)); // yellow ~ -6 dB
-            grad.addColour(0.42, juce::Colour(0xFF50DD50)); // green below
+            grad.addColour(0.10, juce::Colour(0xFFFF2020));
+            grad.addColour(0.20, juce::Colour(0xFFFFCC00));
+            grad.addColour(0.42, juce::Colour(0xFF50DD50));
             g.setGradientFill(grad);
             g.fillRoundedRectangle(fill.toFloat(),2);
         }
@@ -431,14 +433,18 @@ void M3KNormalizatorEditor::drawVuMeter(juce::Graphics& g, juce::Rectangle<int> 
     drawBar(barL, dbL, "L");
     drawBar(barR, dbR, "R");
 
-    // Scale ticks across both bars
-    g.setFont(pf(7.f));
+    // Scale ticks + numeric labels overlaid on bars
+    g.setFont(pf(9.f, true));
     for(float tick : {0.f,-6.f,-12.f,-24.f,-48.f})
     {
         float n=(tick-minDb)/(maxDb-minDb);
         int ty=bars.getBottom()-(int)(n*bars.getHeight());
         g.setColour(juce::Colour(0xFF2A2A2A));
         g.drawHorizontalLine(ty,(float)bars.getX(),(float)bars.getRight());
+        juce::String lbl = (tick == 0.f) ? "0" : juce::String((int)tick);
+        g.setColour(juce::Colour(0xFFAAAAAA));
+        g.drawText(lbl, bars.getX(), ty-10, bars.getWidth(), 10,
+                   juce::Justification::centred);
     }
 
     // peak dB value (max of L/R) at bottom
@@ -495,10 +501,25 @@ void M3KNormalizatorEditor::drawGraph(juce::Graphics& g, juce::Rectangle<int> b)
         g.drawText(juce::String((int)db), b.getX(),(int)y-5,scW-3,10,juce::Justification::centredRight);
     }
 
-    // Time labels
+    // Time labels (bottom)
     g.setFont(pf(8)); g.setColour(dimCol());
-    g.drawText("now",  (int)gx,       b.getBottom()-13, 30, 12, juce::Justification::centredLeft);
+    g.drawText("now",  (int)gx,         b.getBottom()-13, 30, 12, juce::Justification::centredLeft);
     g.drawText("-60s", (int)(gx+gw)-30, b.getBottom()-13, 30, 12, juce::Justification::centredRight);
+
+    // Integrated elapsed time (top-left) — only counts signal above gate
+    {
+        long long samps = processor.integratedSamples.load();
+        double sr = processor.getSampleRate();
+        long long totalSec = (samps > 0 && sr > 0.0)
+                           ? (long long)(samps / sr) : 0LL;
+        int mm = (int)(totalSec / 60);
+        int ss = (int)(totalSec % 60);
+        juce::String elapsed = juce::String::formatted("%d:%02d", mm, ss);
+        g.setFont(pf(9.f, true)); g.setColour(amber().withAlpha(0.7f));
+        g.drawText(elapsed, (int)gx+2, b.getY()+4, 50, 11, juce::Justification::centredLeft);
+        g.setFont(pf(7.5f)); g.setColour(dimCol());
+        g.drawText("INT", (int)gx+2, b.getY()+15, 50, 9, juce::Justification::centredLeft);
+    }
 
     g.saveState();
     g.reduceClipRegion(area);
@@ -541,7 +562,7 @@ void M3KNormalizatorEditor::drawGraph(juce::Graphics& g, juce::Rectangle<int> b)
 // ---- paint (drawn into the design-size canvas) ----
 void M3KNormalizatorEditor::paintCanvas(juce::Graphics& g)
 {
-    const int W=kDesignW;
+    const int W=kDesignW, pad=14;
 
     g.fillAll(juce::Colour(0xFF141414));
 
@@ -571,7 +592,7 @@ void M3KNormalizatorEditor::paintCanvas(juce::Graphics& g)
         int sx=14+i*sw;
         g.setColour(juce::Colour(0xFF1A1A1A));
         g.fillRoundedRectangle((float)sx,(float)sY,(float)(sw-4),(float)sH,3);
-        g.setFont(pf(8,true)); g.setColour(dimCol());
+        g.setFont(pf(8,true)); g.setColour(txtCol());
         g.drawText(strips[i].l, sx+5,sY,24,sH,juce::Justification::centredLeft);
         g.setFont(pf(12,true)); g.setColour(strips[i].c);
         juce::String val;
@@ -581,10 +602,19 @@ void M3KNormalizatorEditor::paintCanvas(juce::Graphics& g)
         g.drawText(val,sx,sY,sw-4,sH,juce::Justification::centred);
     }
 
-    // Compliance light (LED) above the OUT VU meter — is OUTPUT integrated on target?
+    // Compliance light (LED) above the OUT VU meter — output loudness vs target
     {
         float tgt=*processor.apvts.getRawParameterValue("targetLufs");
-        float oi =dispOutInt;
+        int mode=(int)*processor.apvts.getRawParameterValue("mode");
+        // Use the same reference as the active mode for fast response
+        float oi;
+        switch(mode){
+            case 0: case 4: oi = dispM + dispNG; break;  // Momentary
+            case 1: case 5: oi = dispS + dispNG; break;  // Short
+            case 3: case 7: { float cv = processor.customLufs.load();
+                              oi = cv > -69.f ? cv + dispNG : -70.f; break; } // Custom
+            default:        oi = dispOutInt;     break;  // Integrated
+        }
         juce::Colour col; juce::String sub;
         if(oi<=-69.f){ col=juce::Colour(0xFF444444); sub="--"; }
         else {
@@ -644,14 +674,15 @@ void M3KNormalizatorEditor::paintCanvas(juce::Graphics& g)
     int ctrlTop=knobArea.getY()-32;
     g.setColour(juce::Colour(0xFF282828)); g.fillRect(0,ctrlTop,W,1);
 
-    // Knob labels (4 knobs) — labels can be a touch wider than the knob box
-    const int kW=72, kGap=24;
-    const int kX=(W-(4*kW+3*kGap))/2;
-    const int labelY=knobArea.getY()-23;       // shared baseline for all top labels
+    // Knob labels (4 knobs) — same even-spacing formula as layoutCanvas
+    const int kW=72;
+    const float step6 = (float)(W - 2*pad - kW) / 5.0f;
+    auto knobCx = [&](int i){ return pad + kW/2 + juce::roundToInt((i+1) * step6); };
+    const int labelY=knobArea.getY()-23;
     const struct{const char* top,*unit;} kl[]=
         {{"TARGET LUFS","LUFS"},{"SPEED","ms"},{"WINDOW","ms"},{"LIMITER","dBFS"}};
     for(int i=0;i<4;++i){
-        int cx=kX+i*(kW+kGap)+kW/2;             // centre of this knob
+        int cx=knobCx(i);
         g.setFont(pf(9.5f,true)); g.setColour(txtCol());
         g.drawText(kl[i].top, cx-48,labelY,96,13,juce::Justification::centred);
         g.setFont(pf(9.f)); g.setColour(juce::Colour(0xFFA8A8A8));
@@ -687,11 +718,11 @@ void M3KNormalizatorEditor::layoutCanvas()
                                  modeY+row*(mBH+mBGapY), mBW, mBH);
     }
 
-    // Layout areas — knob box sized so its drawn circle (min(kW,kH)-8) == LRA badge (64)
-    const int kH=72, kW=72, kGap=24;
+    // Layout areas
+    const int kH=72, kW=72;
     const int ctrlH=kH+48;
     const int graphTop=modeY+2*mBH+mBGapY+8;
-    const int graphH=H-graphTop-ctrlH-34;   // extra gap above the control labels
+    const int graphH=H-graphTop-ctrlH-34;
 
     // VU meters (stereo — wider to fit L/R bars)
     const int vuW=46;
@@ -699,20 +730,19 @@ void M3KNormalizatorEditor::layoutCanvas()
     vuOutBounds = {W-pad-vuW,   graphTop, vuW, graphH};
     graphBounds = {pad+vuW+4,   graphTop, W-2*pad-2*vuW-8, graphH};
 
-    // Knobs (4) — narrower so they fit between the LRA badges
-    const int kX=(W-(4*kW+3*kGap))/2;
+    // 6 circles evenly spaced: LRA-IN | knob1 | knob2 | knob3 | knob4 | LRA-OUT
     const int kY=H-ctrlH+8;
-    knobArea={kX,kY,4*kW+3*kGap,kH};
-    targetLufsSlider.setBounds(kX+0*(kW+kGap), kY,kW,kH);
-    releaseSlider   .setBounds(kX+1*(kW+kGap), kY,kW,kH);
-    windowSlider    .setBounds(kX+2*(kW+kGap), kY,kW,kH);
-    ceilingSlider   .setBounds(kX+3*(kW+kGap), kY,kW,kH);
+    const int cy = kY + kH/2;
+    const int badgeD = 64;
+    const float step = (float)(W - 2*pad - kW) / 5.0f;
+    auto cx6 = [&](int i){ return pad + kW/2 + juce::roundToInt(i * step); };
 
-    // LRA badges — same diameter & vertical centre as the knobs, under each VU meter
-    const int badgeD  = 64;
-    const int cy      = kY + kH/2;              // knob centre (no text box now)
-    const int cxIn    = vuInBounds.getCentreX();
-    const int cxOut   = vuOutBounds.getCentreX();
-    lraInBadge  = {cxIn -badgeD/2, cy-badgeD/2, badgeD, badgeD};
-    lraOutBadge = {cxOut-badgeD/2, cy-badgeD/2, badgeD, badgeD};
+    lraInBadge       = {cx6(0)-badgeD/2, cy-badgeD/2, badgeD, badgeD};
+    targetLufsSlider.setBounds(cx6(1)-kW/2, kY, kW, kH);
+    releaseSlider   .setBounds(cx6(2)-kW/2, kY, kW, kH);
+    windowSlider    .setBounds(cx6(3)-kW/2, kY, kW, kH);
+    ceilingSlider   .setBounds(cx6(4)-kW/2, kY, kW, kH);
+    lraOutBadge      = {cx6(5)-badgeD/2, cy-badgeD/2, badgeD, badgeD};
+
+    knobArea = {cx6(1)-kW/2, kY, cx6(4)+kW/2 - (cx6(1)-kW/2), kH};
 }

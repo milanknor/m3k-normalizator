@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(M3KNormalizator VERSION 0.5.3)
+project(M3KNormalizator VERSION 0.7.0)
 
 set(CMAKE_CXX_STANDARD 17)
 
@@ -28,6 +28,11 @@ target_sources(M3KNormalizator PRIVATE
     Source/PluginProcessor.cpp
     Source/PluginEditor.cpp
 )
+
+# Standalone-only: custom app with systray (replaces JUCE's default main())
+target_sources(M3KNormalizator_Standalone PRIVATE Source/Standalone.cpp)
+target_compile_definitions(M3KNormalizator_Standalone PRIVATE
+    JUCE_USE_CUSTOM_PLUGIN_STANDALONE_APP=1)
 
 target_compile_definitions(M3KNormalizator PUBLIC
     JUCE_WEB_BROWSER=0

@@ -59,6 +59,8 @@ public:
     std::atomic<float> limGrDb        {   0.0f }; // limiter gain reduction (<=0)
     std::atomic<float> outIntegratedLufs { -70.0f }; // output integrated (for compliance)
     std::atomic<unsigned int> blockCounter { 0 }; // heartbeat: incremented each processBlock
+    std::atomic<long long> integratedSamples { 0 }; // samples above gate (for elapsed time display)
+    std::atomic<float> customLufs { -70.0f };       // current custom-window LUFS (active mode)
 
     // Row 1 = A-weighted, Row 2 = C-weighted
     enum Mode { kMomentary=0, kShort, kIntegrated, kCustom,
@@ -69,6 +71,7 @@ public:
         kIntSum = 0.0; kIntCount = 0;
         cIntSum = 0.0; cIntCount = 0;
         integratedLufs.store(-70.0f);
+        integratedSamples.store(0);
         std::fill(std::begin(lraHistIn),  std::end(lraHistIn),  0LL);
         std::fill(std::begin(lraHistOut), std::end(lraHistOut), 0LL);
         lraSampleCounter = 0;

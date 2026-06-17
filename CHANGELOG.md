@@ -12,6 +12,16 @@ verzování je [semantické](https://semver.org/lang/cs/): **MAJOR.MINOR.PATCH**
 
 ## [Nezveřejněno]
 
+## [0.5.5] – 2026-06-16
+### Změněno
+- Sekundární popisky zesvětleny: `dimCol` z `#555555` → `#888888` (lepší kontrast na tmavém pozadí).
+- Označení M/S/I/GAIN/LIM ve value pruhu a IN/OUT na VU metrech přepsány na světlejší `txtCol` (`#CCCCCC`).
+
+## [0.5.4] – 2026-06-16
+### Změněno
+- Klik na **kterékoli** LRA kolečko (IN nebo OUT) nyní vynuluje **obě** LRA měření najednou.
+- Tlačítko **RESET I** resetuje výhradně Integrated měření (beze změny LRA).
+
 ## [0.5.3] – 2026-06-16
 ### Změněno
 - Zapnuto **LTO** (link-time optimization) — VST3 zmenšeno z 8,2 na 7,1 MB a o kousek
