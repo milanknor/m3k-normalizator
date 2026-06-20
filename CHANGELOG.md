@@ -20,9 +20,10 @@ verzování je [semantické](https://semver.org/lang/cs/): **MAJOR.MINOR.PATCH**
   (auto-makeup dle běžícího průměru GR drží průměrnou hlasitost na cíli). Tlačítko COMP +
   šipka pro schovávací panel s knoby THRESHOLD/RATIO/ATTACK/RELEASE a měřákem záběru (GR).
   Panel překrývá střed spodní lišty (LRA zůstávají vidět).
-- **Master output hlasitost** (atenuace za limiterem) + **slider na tray ikoně** standalonu
-  (levý klik = hlasitost jako Windows flyout, pravý klik = menu).
+- **Master output hlasitost** (atenuace za limiterem) + **tray flyout** standalonu
+  (levý klik = dva jezdce: cílová LUFS + hlasitost výstupu; pravý klik = menu).
 - **Ikona aplikace „N"** (tray, okno, .exe soubor — laděná s logem M3K).
+- **Tmavé téma celé standalone aplikace** (dialog nastavení zvuku, menu, popupy) ladící s UI.
 ### Změněno
 - Nápověda („?") doplněna o spektrum, kompresor a standalone (tray) chování.
 ### Opraveno
