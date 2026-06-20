@@ -75,8 +75,10 @@ public:
         // LRA is intentionally left untouched — reset LRA by clicking the LRA badges.
         kIntSum = 0.0; kIntCount = 0;
         cIntSum = 0.0; cIntCount = 0;
-        std::fill(std::begin(intHistK), std::end(intHistK), 0LL);
-        std::fill(std::begin(intHistC), std::end(intHistC), 0LL);
+        std::fill(std::begin(intHistK),  std::end(intHistK),  0LL);
+        std::fill(std::begin(intHistC),  std::end(intHistC),  0LL);
+        std::fill(std::begin(dispHistK), std::end(dispHistK), 0LL);
+        std::fill(std::begin(dispHistC), std::end(dispHistC), 0LL);
         integratedLufs.store(-70.0f);
         integratedSamples.store(0);
     }
@@ -137,6 +139,10 @@ private:
     // Histograms of 400 ms momentary blocks sampled every 100 ms (75% overlap, per EBU).
     long long intHistK[kLraBins] {};
     long long intHistC[kLraBins] {};
+    // Display integrated — CONTINUOUS (resets only via RESET I, matches the INT timer),
+    // separate from the above which reset per track for the normalization anti-burst.
+    long long dispHistK[kLraBins] {};
+    long long dispHistC[kLraBins] {};
     float computeIntegratedGated(const long long* hist) const;
 
     // Input gain (trim) — ramped per block to avoid zipper noise

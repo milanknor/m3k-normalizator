@@ -209,6 +209,8 @@ void M3KNormalizatorProcessor::prepareToPlay(double sampleRate, int samplesPerBl
     std::fill(std::begin(lraHistOut), std::end(lraHistOut), 0LL);
     std::fill(std::begin(intHistK),   std::end(intHistK),   0LL);
     std::fill(std::begin(intHistC),   std::end(intHistC),   0LL);
+    std::fill(std::begin(dispHistK),  std::end(dispHistK),  0LL);
+    std::fill(std::begin(dispHistC),  std::end(dispHistC),  0LL);
     lraSampleCounter = 0;
 
     normGainSmooth = 1.0;
@@ -629,7 +631,10 @@ void M3KNormalizatorProcessor::processBlock(juce::AudioBuffer<float>& buffer, ju
     if (meterCounter >= meterUpdateInterval)
     {
         meterCounter = 0;
-        double inInt = isC ? cInt : kInt;
+        // Display Integrated uses the CONTINUOUS histogram (matches the INT timer);
+        // the normalization above keeps the per-track-resetting kInt/cInt.
+        double inInt = isC ? (double)computeIntegratedGated(dispHistC)
+                           : (double)computeIntegratedGated(dispHistK);
         momentaryLufs .store((float)(isC ? cMom : kMom));
         shortTermLufs .store((float)(isC ? cSt  : kSt));
         integratedLufs.store((float)inInt);
@@ -658,8 +663,9 @@ void M3KNormalizatorProcessor::processBlock(juce::AudioBuffer<float>& buffer, ju
         lraOutputLU.store(computeLra(lraHistOut));
 
         // EBU R128 integrated: feed 400 ms momentary blocks (K and C) every 100 ms.
-        addSample(intHistK, kMom);
-        addSample(intHistC, cMom);
+        // Resetting histograms (normalization anti-burst) + continuous ones (display).
+        addSample(intHistK,  kMom);  addSample(intHistC,  cMom);
+        addSample(dispHistK, kMom);  addSample(dispHistC, cMom);
     }
 }
 

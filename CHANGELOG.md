@@ -28,6 +28,9 @@ verzování je [semantické](https://semver.org/lang/cs/): **MAJOR.MINOR.PATCH**
 - **GAIN přejmenován na FADER**, barva sjednocena s gain křivkou. Tlačítka režimů obarvena
   podle křivek (M zelená, S modrá, I oranžová, C teal). Tmavé téma popup menu. Okno širší (624 px).
 ### Opraveno
+- **Integrated hodnota je nyní průběžná** — nepadá při přechodu skladeb, integruje dál
+  dokud nedáš RESET I (souhlasí s časovačem INT). Ticho se nezapočítává (gate −70).
+  Normalizace si interně drží vlastní resetující se Integrated (anti-burst), zvuk beze změny.
 - **True-peak limiter** — odstraněno zkreslení při vysoké hlasitosti (kytary). Limiter měl
   chybné časování (zisk řízen okamžitým vstupem, aplikován na zpožděný signál) → pouštěl
   špičky na 0 dBFS a tvrdě ořezával. Nově sliding-window minimum (peak-hold) přes lookahead
