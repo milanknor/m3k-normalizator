@@ -4,23 +4,26 @@ Real-time LUFS loudness normalizer and metering plugin for Windows.
 Available as **VST3** (for DAWs) and **Standalone** desktop application.
 
 **Author:** Milan Knor  
-**Version:** 0.7.0  
-**Platform:** Windows 10/11 (x64)
+**License:** AGPL-3.0-or-later (free / open source)  
+**Platform:** Windows 10/11 (x64)  
+**Latest release:** see [Releases](../../releases)
 
 ---
 
 ## Features
 
 - **8 measurement modes** — Momentary (400 ms), Short (3 s), Integrated, Custom window; each in K-weighting (EBU R128) and C-weighting (IEC 61672)
-- **Auto-normalization** to target LUFS (−60 to 0), smooth gain adaptation with configurable Speed
-- **True-peak limiter** — 4× oversampling, lookahead ~1.5 ms, configurable ceiling (dBFS)
+- **Auto-normalization** to target LUFS (−60 to 0) with separate **UP/DOWN** speeds (program-dependent release)
+- **EBU R128 integrated** with two-stage gating (absolute −70 LUFS + relative −10 LU); verified against pyloudnorm to ~0.01 LU
+- **Intermediate compressor** (glue/leveler) — loudness-neutral, with gain-reduction meter
+- **True-peak limiter** — 4× oversampling, lookahead, configurable ceiling (dBTP)
 - **LRA measurement** (EBU Tech 3342) for input and output separately
-- **Stereo VU meters** with dB scale, 60-second rolling graph
-- **Compliance LED** — shows whether output loudness is on target
-- **Integrated time counter** — counts only signal above the gating threshold
+- **Graph views** — Loudness / Fader (per-mode gain preview) / **Spectrum** (FFT analyzer)
+- **Stereo VU meters** with dB scale, 60-second rolling graph, compliance LED
+- **Input gain trim**, **master output volume**
 - **Factory presets** — Spotify, Apple Music, YouTube, EBU R128, ATSC A/85, Podcast, Club/DJ and more
 - **Save/Load presets** (`.m3kpreset` files)
-- **Standalone with system tray** — minimizes to tray, right-click menu for audio device settings
+- **Standalone with system tray** — audio bridge, tray volume flyout, dark theme
 
 ## Standalone — virtual audio bridge
 
@@ -72,4 +75,21 @@ Then rescan plugins in your DAW.
 
 ## License
 
-© Milan Knor. All rights reserved.
+Copyright © 2026 Milan Knor.
+
+This program is free software: you can redistribute it and/or modify it under the
+terms of the **GNU Affero General Public License v3.0** (AGPL-3.0-or-later) as
+published by the Free Software Foundation. See [LICENSE](LICENSE) for the full text.
+
+It is distributed in the hope that it will be useful, but **WITHOUT ANY WARRANTY**;
+without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
+### Third-party
+
+- **[JUCE](https://juce.com)** — audio/GUI framework, used under its open-source
+  **AGPLv3** license. (Commercial use requires a JUCE licence.)
+- **VST3 SDK** — © Steinberg Media Technologies, used under GPLv3 / the Steinberg VST3 licence.
+  *VST* is a trademark of Steinberg Media Technologies GmbH.
+
+Because this project links JUCE under AGPLv3, the **complete source code** of every
+released binary is published in this repository.
