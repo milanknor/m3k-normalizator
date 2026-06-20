@@ -92,19 +92,30 @@ struct HelpComponent : public juce::Component
             "- Radek 'C' = stejne, ale C-vazeni (IEC 61672) misto K-vazeni.\n"
             "- NORMALIZE: zapina/vypina automatickou normalizaci.\n"
             "- RESET I: vynuluje pouze Integrated mereni (a jeho cas).\n\n"
-            "GRAF\n"
-            "- Prepinac nahore 'LOUDNESS / FADER':\n"
+            "GRAF (prepinac nahore: LOUDNESS / FADER / SPECTRUM)\n"
             "  * LOUDNESS = vystupni hlasitost (M/S/I/C) vuci cili.\n"
             "  * FADER = jak by jel zisk v jednotlivych rezimech \xe2\x80\x93 aktivni\n"
             "    plnou carou, ostatni prerusovane (pro porovnani rezimu).\n"
+            "  * SPECTRUM = frekvencni spektrum vystupu (FFT, 20 Hz \xe2\x80\x93 20 kHz).\n"
             "- Klik na pismena M / S / I / C / FADER (horni pruh) skryje/zobrazi krivku.\n"
             "- Cislo 'INT' vlevo nahore = cas zapocitany do Integrated.\n\n"
+            "KOMPRESOR (glue/leveler)\n"
+            "- Tlacitko COMP (v hlavicce) = zapnout/vypnout. Sipka vedle = zobrazit\n"
+            "  nastaveni (prepne spodni listu na kompresor; LRA zustanou videt).\n"
+            "- THRESHOLD, RATIO, ATTACK, RELEASE + meric zaberu (GR).\n"
+            "- Je loudness-neutralni: snizi dynamiku, ale prumernou hlasitost drzi na cili.\n"
+            "  Sedi mezi normalizaci a limiterem.\n\n"
             "INDIKATORY\n"
             "- VU metry IN/OUT (stereo, peak). LRA kolecka = rozsah dynamiky;\n"
             "  klik na kterekoli vynuluje obe.\n"
             "- Kontrolka 'CIL' nad pravym VU: zelena = vystup sedi na cil.\n\n"
             "PRESET\n"
             "- Tovarni predvolby dle norem (Spotify, EBU R128, ...) i ulozeni/nacteni vlastnich.\n\n"
+            "STANDALONE (samostatna aplikace)\n"
+            "- Zavre/minimalizuje se do systray (ikona N).\n"
+            "- Levy klik na ikonu = posuvnik vystupni hlasitosti. Pravy klik = menu\n"
+            "  (zobrazit okno, nastaveni zvuku, ukoncit). Funguje jako audio bridge\n"
+            "  (napr. s VB-Audio Virtual Cable).\n\n"
             "(c) Milan Knor"), juce::dontSendNotification);
     }
     void resized() override { te.setBounds(getLocalBounds().reduced(1)); }
@@ -231,6 +242,10 @@ M3KNormalizatorEditor::M3KNormalizatorEditor(M3KNormalizatorProcessor& p)
     setupKnob(windowSlider);
     setupKnob(ceilingSlider);
     setupKnob(inputGainSlider);
+    setupKnob(threshSlider);
+    setupKnob(ratioSlider);
+    setupKnob(compAttackSlider);
+    setupKnob(compReleaseSlider);
 
     // Ctrl/Cmd+click resets each knob to its parameter default.
     auto setDefault=[&](ValueKnob& k, const juce::String& id){
@@ -243,6 +258,8 @@ M3KNormalizatorEditor::M3KNormalizatorEditor(M3KNormalizatorProcessor& p)
     setDefault(targetLufsSlider,"targetLufs"); setDefault(releaseSlider,"releaseMs");
     setDefault(attackSlider,"attackMs");       setDefault(windowSlider,"customMs");
     setDefault(ceilingSlider,"ceiling");       setDefault(inputGainSlider,"inputGain");
+    setDefault(threshSlider,"compThresh");     setDefault(ratioSlider,"compRatio");
+    setDefault(compAttackSlider,"compAttack"); setDefault(compReleaseSlider,"compRelease");
 
     normalizeButton.setLookAndFeel(&laf);
     normalizeButton.setColour(juce::ToggleButton::textColourId,txtCol());
@@ -256,6 +273,10 @@ M3KNormalizatorEditor::M3KNormalizatorEditor(M3KNormalizatorProcessor& p)
     windowAttach  = std::make_unique<SliderAttachment>(processor.apvts,"customMs",   windowSlider);
     ceilingAttach = std::make_unique<SliderAttachment>(processor.apvts,"ceiling",    ceilingSlider);
     inputGainAttach = std::make_unique<SliderAttachment>(processor.apvts,"inputGain", inputGainSlider);
+    threshAttach  = std::make_unique<SliderAttachment>(processor.apvts,"compThresh", threshSlider);
+    ratioAttach   = std::make_unique<SliderAttachment>(processor.apvts,"compRatio",  ratioSlider);
+    compAttackAttach  = std::make_unique<SliderAttachment>(processor.apvts,"compAttack",  compAttackSlider);
+    compReleaseAttach = std::make_unique<SliderAttachment>(processor.apvts,"compRelease", compReleaseSlider);
     normAttach    = std::make_unique<ButtonAttachment>(processor.apvts,"normalize",  normalizeButton);
 
     // ---- České tooltipy (nájezd myší) ----
@@ -271,6 +292,10 @@ M3KNormalizatorEditor::M3KNormalizatorEditor(M3KNormalizatorProcessor& p)
         "Window – delka mericiho okna pro rezimy Custom (10–10000 ms)."));
     ceilingSlider.setTooltip(juce::String::fromUTF8(
         "Limiter – strop vystupnich spicek (dBFS, true-peak). Vystup nikdy neprekroci."));
+    threshSlider.setTooltip(juce::String::fromUTF8(
+        "Comp Threshold – prah kompresoru (dB). Nizsi = komprimuje vic signalu."));
+    ratioSlider.setTooltip(juce::String::fromUTF8(
+        "Comp Ratio – pomer komprese nad prahem. Vyssi = silnejsi (slysitelnejsi) glue."));
     inputGainSlider.setTooltip(juce::String::fromUTF8(
         "Vstupni gain (trim) – zesili/zeslabi vstupni signal pred merenim i zpracovanim. "
         "Slouzi k simulaci zmen hlasitosti nahravky. "
@@ -320,6 +345,33 @@ M3KNormalizatorEditor::M3KNormalizatorEditor(M3KNormalizatorProcessor& p)
     presetButton.onClick=[this](){ showPresetMenu(); };
     canvas.addAndMakeVisible(presetButton);
 
+    // Compressor on/off (header, between PRESET and RESET) — glue/leveler
+    compButton.setClickingTogglesState(true);
+    compButton.setColour(juce::TextButton::buttonOnColourId, juce::Colour(0xFFE86050));
+    compButton.setLookAndFeel(&laf);
+    compButton.setTooltip(juce::String::fromUTF8(
+        "Kompresor (glue/leveler) – zmensi strednedobou dynamiku, prumernou hlasitost "
+        "zachova (loudness-neutralni). Default -18 dB / 2:1. Sedi pred limiterem."));
+    canvas.addAndMakeVisible(compButton);
+    compAttach = std::make_unique<ButtonAttachment>(processor.apvts,"compOn",compButton);
+
+    // Chevron to show/hide the compressor settings panel
+    compExpandButton.setButtonText(juce::String::fromUTF8("\xe2\x96\xbe")); // ▾
+    compExpandButton.setColour(juce::TextButton::buttonOnColourId, juce::Colour(0xFFE86050));
+    compExpandButton.setLookAndFeel(&laf);
+    compExpandButton.setTooltip(juce::String::fromUTF8("Zobrazit / skryt nastaveni kompresoru."));
+    compExpandButton.onClick=[this]{ setCompExpanded(!compExpanded); };
+    canvas.addAndMakeVisible(compExpandButton);
+
+    threshSlider.setTooltip(juce::String::fromUTF8(
+        "Comp Threshold – prah (dB). Nizsi = komprimuje vic."));
+    ratioSlider.setTooltip(juce::String::fromUTF8(
+        "Comp Ratio – pomer komprese. Vyssi = silnejsi glue."));
+    compAttackSlider.setTooltip(juce::String::fromUTF8(
+        "Comp Attack – jak rychle kompresor reaguje na hlasity vstup (ms)."));
+    compReleaseSlider.setTooltip(juce::String::fromUTF8(
+        "Comp Release – jak rychle se po zeslabeni vraci (ms)."));
+
     // Help button ("?") — top-left, opens the usage guide
     helpButton.setColour(juce::TextButton::buttonOnColourId, amber());
     helpButton.setLookAndFeel(&laf);
@@ -330,7 +382,21 @@ M3KNormalizatorEditor::M3KNormalizatorEditor(M3KNormalizatorProcessor& p)
     };
     canvas.addAndMakeVisible(helpButton);
 
+    setCompExpanded(false);   // start collapsed (hides comp knobs, sets size)
     startTimerHz(30);
+}
+
+void M3KNormalizatorEditor::setCompExpanded(bool e)
+{
+    compExpanded = e;
+    compExpandButton.setButtonText(juce::String::fromUTF8(e ? "\xe2\x96\xb4" : "\xe2\x96\xbe")); // ▴ / ▾
+    // Compressor panel overlays the bottom controls — swap which knobs are visible.
+    for (auto* s : { &targetLufsSlider,&attackSlider,&releaseSlider,&windowSlider,&ceilingSlider })
+        s->setVisible(!e);
+    for (auto* s : { &threshSlider,&ratioSlider,&compAttackSlider,&compReleaseSlider })
+        s->setVisible(e);
+    layoutCanvas();
+    canvas.repaint();
 }
 
 M3KNormalizatorEditor::~M3KNormalizatorEditor()
@@ -339,6 +405,11 @@ M3KNormalizatorEditor::~M3KNormalizatorEditor()
     targetLufsSlider.setLookAndFeel(nullptr);
     releaseSlider   .setLookAndFeel(nullptr);
     attackSlider    .setLookAndFeel(nullptr);
+    threshSlider    .setLookAndFeel(nullptr);
+    ratioSlider     .setLookAndFeel(nullptr);
+    compAttackSlider.setLookAndFeel(nullptr);
+    compReleaseSlider.setLookAndFeel(nullptr);
+    compExpandButton.setLookAndFeel(nullptr);
     windowSlider    .setLookAndFeel(nullptr);
     ceilingSlider   .setLookAndFeel(nullptr);
     inputGainSlider .setLookAndFeel(nullptr);
@@ -346,6 +417,7 @@ M3KNormalizatorEditor::~M3KNormalizatorEditor()
     resetButton     .setLookAndFeel(nullptr);
     presetButton    .setLookAndFeel(nullptr);
     helpButton      .setLookAndFeel(nullptr);
+    compButton      .setLookAndFeel(nullptr);
     for(auto& b:modeButtons) b.setLookAndFeel(nullptr);
 }
 
@@ -452,7 +524,7 @@ juce::String M3KNormalizatorEditor::tooltipForPoint(juce::Point<int> p)
     juce::Rectangle<int> led(vuOutBounds.getX()-6, vuOutBounds.getY()-42,
                              vuOutBounds.getWidth()+12, 42);
     if(led.contains(p)) return U("Kontrolka: jestli vystupni Integrated sedi na cil (zelena = v cili).");
-    if(viewToggle.contains(p)) return U("Prepinac grafu: LOUDNESS (vystupni hlasitost) / FADER (pohyb zisku po rezimech – aktivni plne, ostatni prerusovane).");
+    if(viewToggle.contains(p)) return U("Prepinac grafu: LOUDNESS (vystupni hlasitost) / FADER (pohyb zisku po rezimech) / SPECTRUM (frekvencni spektrum vystupu).");
     if(graphBounds.contains(p)) return U("Prubeh za 60 s. Klik na pismena M/S/I/C/FADER = skryt/zobrazit krivku.");
     if(logoBounds .contains(p)) return U("O aplikaci (logo, verze).");
     return {};
@@ -460,8 +532,12 @@ juce::String M3KNormalizatorEditor::tooltipForPoint(juce::Point<int> p)
 
 void M3KNormalizatorEditor::canvasClicked(juce::Point<int> p)
 {
-    // Graph view switch (Loudness / Fader)
-    if(viewToggle.contains(p)){ graphView ^= 1; canvas.repaint(); return; }
+    // Graph view switch (Loudness / Fader / Spectrum)
+    if(viewToggle.contains(p)){
+        int seg=viewToggle.getWidth()/3;
+        graphView=juce::jlimit(0,2,(p.x-viewToggle.getX())/seg);
+        canvas.repaint(); return;
+    }
 
     // Value strip: M/S/I/C/GAIN cells toggle their graph curve
     if(stripCell[0].contains(p)){ showM=!showM; canvas.repaint(); return; }
@@ -505,6 +581,7 @@ void M3KNormalizatorEditor::timerCallback()
     dispLraIn  = processor.lraInputLU .load();
     dispLraOut = processor.lraOutputLU.load();
     sm(dispGr, processor.limGrDb.load());          // smoothed gain-reduction
+    sm(dispCompGr, processor.compGrDb.load());     // compressor gain-reduction
     dispOutInt = processor.outIntegratedLufs.load();
 
     // Graph stores OUTPUT LUFS = input LUFS + normGain
@@ -617,14 +694,38 @@ void M3KNormalizatorEditor::drawGraph(juce::Graphics& g, juce::Rectangle<int> b)
     float gx=(float)area.getX(), gy=(float)area.getY(), gw=(float)area.getWidth(), gh=(float)area.getHeight();
 
     const bool fader = (graphView == 1);
+    const bool spec  = (graphView == 2);
     const float gMin=-24.f, gMax=24.f;
+    const float sMin=-90.f, sMax=0.f;   // spectrum dB range
     auto yLufs=[&](float db){ float n=(juce::jlimit(minDb,maxDb,db)-minDb)/(maxDb-minDb);
                               return gy+gh-n*gh; };
     auto yGain=[&](float db){ float n=(juce::jlimit(gMin,gMax,db)-gMin)/(gMax-gMin);
                               return gy+gh-n*gh; };
+    auto ySpec=[&](float db){ float n=(juce::jlimit(sMin,sMax,db)-sMin)/(sMax-sMin);
+                              return gy+gh-n*gh; };
     float targetLufs=*processor.apvts.getRawParameterValue("targetLufs");
 
-    if(!fader)
+    if(spec)
+    {
+        // Spectrum: dB grid (horizontal) + frequency grid (vertical, log)
+        for(float db : {0.f,-20.f,-40.f,-60.f,-80.f}){
+            float y=ySpec(db);
+            g.setColour(juce::Colour(0xFF1E1E1E)); g.drawHorizontalLine((int)y,gx,gx+gw);
+            g.setFont(pf(8)); g.setColour(dimCol());
+            g.drawText(juce::String((int)db), b.getX(),(int)y-5,scW-3,10,juce::Justification::centredRight);
+        }
+        struct{float f;const char* l;}fl[]={{100,"100"},{1000,"1k"},{10000,"10k"}};
+        for(auto& e:fl){
+            float bx=(float)(std::log(e.f/20.0)/std::log(1000.0)); // 0..1 across 20Hz-20kHz
+            float x=gx+bx*gw;
+            g.setColour(juce::Colour(0xFF1E1E1E)); g.drawVerticalLine((int)x,gy,gy+gh);
+            g.setFont(pf(7.5f)); g.setColour(dimCol());
+            g.drawText(e.l,(int)x-14,(int)(gy+gh)+1,28,10,juce::Justification::centred);
+        }
+        g.setFont(pf(7.f)); g.setColour(dimCol());
+        g.drawText("dB", b.getX()+2,(int)gy+1, scW-4,9, juce::Justification::centredLeft);
+    }
+    else if(!fader)
     {
         // Target LUFS line
         float ty=yLufs(targetLufs);
@@ -662,10 +763,12 @@ void M3KNormalizatorEditor::drawGraph(juce::Graphics& g, juce::Rectangle<int> b)
         g.drawText("dB", b.getX()+2,(int)gy+1, scW-4,9, juce::Justification::centredLeft);
     }
 
-    // Time labels (bottom) — both views
-    g.setFont(pf(8)); g.setColour(dimCol());
-    g.drawText("now",  (int)gx,         b.getBottom()-13, 30, 12, juce::Justification::centredLeft);
-    g.drawText("-60s", (int)(gx+gw)-30, b.getBottom()-13, 30, 12, juce::Justification::centredRight);
+    // Time labels (bottom) — loudness/fader only (spectrum has a frequency axis)
+    if(!spec){
+        g.setFont(pf(8)); g.setColour(dimCol());
+        g.drawText("now",  (int)gx,         b.getBottom()-13, 30, 12, juce::Justification::centredLeft);
+        g.drawText("-60s", (int)(gx+gw)-30, b.getBottom()-13, 30, 12, juce::Justification::centredRight);
+    }
 
     // Integrated elapsed time (top-left)
     {
@@ -679,21 +782,38 @@ void M3KNormalizatorEditor::drawGraph(juce::Graphics& g, juce::Rectangle<int> b)
         g.drawText("INT", (int)gx+2, b.getY()+15, 46, 9, juce::Justification::centredLeft);
     }
 
-    // View toggle (top-centre) — switch Loudness / Fader
+    // View toggle (top-centre) — Loudness / Fader / Spectrum
     {
-        int tw=150, tx=(int)(gx+gw*0.5f)-tw/2, ty=b.getY()+4;
+        const char* names[3]={"LOUDNESS","FADER","SPECTRUM"};
+        int tw=234, tx=(int)(gx+gw*0.5f)-tw/2, ty=b.getY()+4, seg=tw/3;
         viewToggle = { tx, ty, tw, 13 };
         g.setFont(pf(8.5f,true));
-        g.setColour(graphView==0?amber():dimCol());
-        g.drawText("LOUDNESS", tx, ty, tw/2-6, 13, juce::Justification::centredRight);
-        g.setColour(dimCol()); g.drawText("|", tx+tw/2-4, ty, 8, 13, juce::Justification::centred);
-        g.setColour(graphView==1?amber():dimCol());
-        g.drawText("FADER", tx+tw/2+4, ty, tw/2-6, 13, juce::Justification::centredLeft);
+        for(int i=0;i<3;++i){
+            g.setColour(graphView==i?amber():dimCol());
+            g.drawText(names[i], tx+i*seg, ty, seg, 13, juce::Justification::centred);
+            if(i<2){ g.setColour(dimCol()); g.drawText("|", tx+(i+1)*seg-4, ty, 8,13, juce::Justification::centred); }
+        }
     }
 
     g.saveState();
     g.reduceClipRegion(area);
 
+    if(spec)
+    {
+        const int N=M3KNormalizatorProcessor::kSpecBins;
+        juce::Path fillP; fillP.startNewSubPath(gx, gy+gh);
+        for(int bb=0; bb<N; ++bb)
+            fillP.lineTo(gx + (float)bb/(N-1)*gw, ySpec(processor.spectrum[bb].load()));
+        fillP.lineTo(gx+gw, gy+gh); fillP.closeSubPath();
+        g.setColour(colS().withAlpha(0.22f)); g.fillPath(fillP);
+        juce::Path lineP; bool st=false;
+        for(int bb=0; bb<N; ++bb){
+            float x=gx + (float)bb/(N-1)*gw, y=ySpec(processor.spectrum[bb].load());
+            if(!st){lineP.startNewSubPath(x,y);st=true;} else lineP.lineTo(x,y);
+        }
+        g.setColour(colS()); g.strokePath(lineP, juce::PathStrokeType(1.3f));
+    }
+    else {
     int pts=std::min(histFilled,(int)gw);
     if(pts>=2)
     {
@@ -753,10 +873,11 @@ void M3KNormalizatorEditor::drawGraph(juce::Graphics& g, juce::Rectangle<int> b)
             }
         }
     }
+    }
     g.restoreState();
 
     // GAIN scale (right edge) — loudness view only, when gain curve visible
-    if(!fader && showG)
+    if(!fader && !spec && showG)
     {
         g.setFont(pf(7.f));
         for(float gdb : {24.f,12.f,0.f,-12.f,-24.f}){
@@ -768,7 +889,12 @@ void M3KNormalizatorEditor::drawGraph(juce::Graphics& g, juce::Rectangle<int> b)
     }
 
     // Legend
-    if(!fader){
+    if(spec){
+        g.setFont(pf(8,true)); g.setColour(colS().withAlpha(0.8f));
+        g.drawText("SPEKTRUM (vystup)", (int)(gx+gw)-120, b.getY()+6, 118, 10,
+                   juce::Justification::centredRight);
+    }
+    else if(!fader){
         struct{juce::Colour c;const char* l;bool on;}leg[]={
             {colM(),"M",showM},{colS(),"S",showS},{colI(),"I",showI},
             {colC(),"C",showC},{colG(),"F",showG}};
@@ -943,19 +1069,64 @@ void M3KNormalizatorEditor::paintCanvas(juce::Graphics& g)
     int ctrlTop=knobArea.getY()-32;
     g.setColour(juce::Colour(0xFF282828)); g.fillRect(0,ctrlTop,W,1);
 
-    // Knob labels (5 knobs) — same even-spacing formula as layoutCanvas (circles 1..5)
-    const int kW=72;
-    const float step7 = (float)(W - 2*pad - kW) / 6.0f;
-    auto knobCx = [&](int i){ return pad + kW/2 + juce::roundToInt((i+1) * step7); };
-    const int labelY=knobArea.getY()-23;
-    const struct{const char* top,*unit;} kl[]=
-        {{"TARGET LUFS","LUFS"},{"DOWN","ms"},{"UP","ms"},{"WINDOW","ms"},{"LIMITER","dBFS"}};
-    for(int i=0;i<5;++i){
-        int cx=knobCx(i);
-        g.setFont(pf(9.5f,true)); g.setColour(txtCol());
-        g.drawText(kl[i].top, cx-46,labelY,92,13,juce::Justification::centred);
-        g.setFont(pf(9.f)); g.setColour(juce::Colour(0xFFA8A8A8));
-        g.drawText(kl[i].unit,cx-46,knobArea.getBottom()+5,92,12,juce::Justification::centred);
+    // Knob labels (5 knobs) — hidden when the compressor panel overlays the bottom band
+    if(!compExpanded){
+        const int kW=72;
+        const float step7 = (float)(W - 2*pad - kW) / 6.0f;
+        auto knobCx = [&](int i){ return pad + kW/2 + juce::roundToInt((i+1) * step7); };
+        const int labelY=knobArea.getY()-23;
+        const struct{const char* top,*unit;} kl[]=
+            {{"TARGET LUFS","LUFS"},{"DOWN","ms"},{"UP","ms"},{"WINDOW","ms"},{"LIMITER","dBFS"}};
+        for(int i=0;i<5;++i){
+            int cx=knobCx(i);
+            g.setFont(pf(9.5f,true)); g.setColour(txtCol());
+            g.drawText(kl[i].top, cx-46,labelY,92,13,juce::Justification::centred);
+            g.setFont(pf(9.f)); g.setColour(juce::Colour(0xFFA8A8A8));
+            g.drawText(kl[i].unit,cx-46,knobArea.getBottom()+5,92,12,juce::Justification::centred);
+        }
+    }
+
+    // ---- Compressor panel — overlays the bottom control band when expanded ----
+    if(compExpanded)
+    {
+        // Cover only the MIDDLE band (between the LRA badges) so LRA stays visible
+        int top=ctrlTop+1, bot=kDesignH;
+        int mx0=lraInBadge.getRight(), mx1=lraOutBadge.getX();
+        g.setColour(juce::Colour(0xFF141414)); g.fillRect(mx0,top,mx1-mx0,bot-top);
+        g.setFont(pf(9.5f,true)); g.setColour(juce::Colour(0xFFE86050).withAlpha(0.9f));
+        g.drawText("COMPRESSOR", mx0, top+3, mx1-mx0, 13, juce::Justification::centred);
+        const bool compOn=*processor.apvts.getRawParameterValue("compOn")>0.5f;
+        g.setFont(pf(8.f)); g.setColour(compOn?colM():dimCol());
+        g.drawText(compOn?"ON":"OFF", mx1-60, top+3, 56, 13, juce::Justification::centredRight);
+
+        struct{juce::Rectangle<int> b;const char* top,*unit;} cl[]={
+            {threshSlider.getBounds(),     "THRESHOLD","dB"},
+            {ratioSlider.getBounds(),      "RATIO",    ":1"},
+            {compAttackSlider.getBounds(), "ATTACK",   "ms"},
+            {compReleaseSlider.getBounds(),"RELEASE",  "ms"}};
+        for(auto& e:cl){
+            int cx=e.b.getCentreX();
+            g.setFont(pf(9.f,true)); g.setColour(txtCol());
+            g.drawText(e.top, cx-46,e.b.getY()-15,92,12,juce::Justification::centred);
+            g.setFont(pf(8.5f)); g.setColour(juce::Colour(0xFFA8A8A8));
+            g.drawText(e.unit,cx-46,e.b.getBottom()+4,92,11,juce::Justification::centred);
+        }
+
+        // Gain-reduction meter (downward bar, 0..-18 dB)
+        auto mb=compGrBounds;
+        g.setColour(juce::Colour(0xFF0E0E0E)); g.fillRoundedRectangle(mb.toFloat(),2);
+        g.setColour(juce::Colour(0xFF2A2A2A)); g.drawRoundedRectangle(mb.toFloat().reduced(.5f),2,1);
+        float grdb=juce::jlimit(-18.f,0.f,dispCompGr);
+        int fillH=(int)((-grdb/18.f)*mb.getHeight());
+        if(fillH>0){
+            auto fr=mb.withHeight(fillH);
+            g.setColour(juce::Colour(0xFFE86050)); g.fillRoundedRectangle(fr.toFloat().reduced(1),2);
+        }
+        g.setFont(pf(7.f,true)); g.setColour(dimCol());
+        g.drawText("GR", mb.getX()-3, mb.getY()-11, mb.getWidth()+6, 9, juce::Justification::centred);
+        g.setFont(pf(7.5f,true)); g.setColour(dispCompGr<-0.3f?juce::Colour(0xFFE86050):dimCol());
+        g.drawText(juce::String(dispCompGr,1), mb.getX()-8, mb.getBottom()+1, mb.getWidth()+16, 10,
+                   juce::Justification::centred);
     }
 }
 
@@ -978,6 +1149,9 @@ void M3KNormalizatorEditor::layoutCanvas()
     resetButton.setBounds(W-172-58, 12, 52, 20);
     // PRESET menu — header, between title and Reset
     presetButton.setBounds(214, 12, 92, 20);
+    // COMP on/off + chevron (show/hide compressor settings) — header gap
+    compButton.setBounds(322, 12, 48, 20);
+    compExpandButton.setBounds(372, 12, 18, 20);
 
     // Mode buttons — two rows of 4 (row1 = A-weighted, row2 = C-weighted)
     const int mBW=96, mBH=22, mBGapX=6, mBGapY=4;
@@ -989,7 +1163,7 @@ void M3KNormalizatorEditor::layoutCanvas()
                                  modeY+row*(mBH+mBGapY), mBW, mBH);
     }
 
-    // Layout areas
+    // Layout areas — main content uses the base height; compressor panel is appended below
     const int kH=72, kW=72;
     const int ctrlH=kH+48;
     const int graphTop=modeY+2*mBH+mBGapY+8;
@@ -1024,4 +1198,17 @@ void M3KNormalizatorEditor::layoutCanvas()
     lraOutBadge      = {cx7(6)-badgeD/2, cy-badgeD/2, badgeD, badgeD};
 
     knobArea = {cx7(1)-kW/2, kY, cx7(5)+kW/2 - (cx7(1)-kW/2), kH};
+
+    // Compressor knobs overlay the MIDDLE of the bottom band (LRA badges stay visible).
+    // Same knob size as the normalizer; 4 knobs + a GR meter spread between the LRA badges.
+    {
+        const int x0=lraInBadge.getRight()+8, x1=lraOutBadge.getX()-8;
+        const int regionW=x1-x0, n=5, meterW=24;
+        auto cxc=[&](int i){ return x0 + juce::roundToInt((i+0.5)*regionW/(double)n); };
+        threshSlider     .setBounds(cxc(0)-kW/2, kY, kW, kH);
+        ratioSlider      .setBounds(cxc(1)-kW/2, kY, kW, kH);
+        compAttackSlider .setBounds(cxc(2)-kW/2, kY, kW, kH);
+        compReleaseSlider.setBounds(cxc(3)-kW/2, kY, kW, kH);
+        compGrBounds = { cxc(4)-meterW/2, kY+8, meterW, kH-16 };
+    }
 }

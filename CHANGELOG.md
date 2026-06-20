@@ -12,6 +12,23 @@ verzování je [semantické](https://semver.org/lang/cs/): **MAJOR.MINOR.PATCH**
 
 ## [Nezveřejněno]
 
+## [0.10.x] – 2026-06-20
+### Přidáno
+- **Spektrální analyzátor** — třetí pohled grafu (přepínač LOUDNESS / FADER / SPECTRUM):
+  FFT 2048 frekvenčního spektra výstupu, log osa 20 Hz–20 kHz.
+- **Mezistupňový kompresor (glue/leveler)** mezi normalizací a limiterem — loudness-neutrální
+  (auto-makeup dle běžícího průměru GR drží průměrnou hlasitost na cíli). Tlačítko COMP +
+  šipka pro schovávací panel s knoby THRESHOLD/RATIO/ATTACK/RELEASE a měřákem záběru (GR).
+  Panel překrývá střed spodní lišty (LRA zůstávají vidět).
+- **Master output hlasitost** (atenuace za limiterem) + **slider na tray ikoně** standalonu
+  (levý klik = hlasitost jako Windows flyout, pravý klik = menu).
+- **Ikona aplikace „N"** (tray, okno, .exe soubor — laděná s logem M3K).
+### Změněno
+- Nápověda („?") doplněna o spektrum, kompresor a standalone (tray) chování.
+### Opraveno
+- **Výstupní LRA** se nově počítá z **K-váženého skutečného výstupu** (po normalizaci,
+  kompresoru i limiteru), ne jako vstupní short-term + gain offset.
+
 ## [0.9.x] – 2026-06-20
 ### Přidáno
 - **Dvě rychlosti adaptace**: ovladač **DOWN** (ztišení hlasitého náporu) a **UP**

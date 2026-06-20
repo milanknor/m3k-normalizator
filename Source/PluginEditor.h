@@ -77,6 +77,8 @@ private:
     // Window kept compact; controls at original size, graph/VU take the rest
     static constexpr int kDesignW = 624, kDesignH = 496;
     static constexpr float kUiScale = 1.0f;
+    bool compExpanded = false;                 // compressor panel overlays the bottom controls
+    void setCompExpanded(bool e);
 
     void timerCallback() override;
     void paintCanvas(juce::Graphics& g);
@@ -116,12 +118,15 @@ private:
 
     ValueKnob targetLufsSlider, releaseSlider, attackSlider, windowSlider, ceilingSlider;
     ValueKnob inputGainSlider;             // small trim knob above the IN VU meter
+    ValueKnob threshSlider, ratioSlider, compAttackSlider, compReleaseSlider; // compressor row
     juce::ToggleButton normalizeButton { "NORMALIZE" };
     juce::TooltipWindow tooltips { this, 600 };
     juce::TextButton   modeButtons[8];
     juce::TextButton   resetButton  { "RESET I" };
     juce::TextButton   presetButton { "PRESET" };
     juce::TextButton   helpButton   { "?" };
+    juce::TextButton   compButton   { "COMP" };
+    juce::TextButton   compExpandButton;   // chevron: show/hide compressor settings
     std::unique_ptr<juce::FileChooser> chooser;
     juce::File presetDir();
     void showPresetMenu();
@@ -131,7 +136,8 @@ private:
     using SliderAttachment = juce::AudioProcessorValueTreeState::SliderAttachment;
     using ButtonAttachment = juce::AudioProcessorValueTreeState::ButtonAttachment;
     std::unique_ptr<SliderAttachment> targetAttach, releaseAttach, attackAttach, windowAttach, ceilingAttach, inputGainAttach;
-    std::unique_ptr<ButtonAttachment> normAttach;
+    std::unique_ptr<SliderAttachment> threshAttach, ratioAttach, compAttackAttach, compReleaseAttach;
+    std::unique_ptr<ButtonAttachment> normAttach, compAttach;
 
     // Smoothed display values
     float dispM  = -70.f, dispS  = -70.f, dispI  = -70.f, dispC = -70.f;
@@ -139,7 +145,7 @@ private:
     float dispVuInL = -70.f, dispVuInR = -70.f;
     float dispVuOutL = -70.f, dispVuOutR = -70.f;
     float dispLraIn = 0.f, dispLraOut = 0.f;
-    float dispGr = 0.f, dispOutInt = -70.f;
+    float dispGr = 0.f, dispOutInt = -70.f, dispCompGr = 0.f;
     unsigned int lastBlockCounter = 0; // detect when audio callbacks stop
 
     // Graph history — 60s at 30fps = 1800 pts. M/S/I = output LUFS, G = applied gain (dB)
@@ -162,7 +168,7 @@ private:
     juce::Rectangle<int> stripCell[6];
 
     juce::Rectangle<int> graphBounds, vuInBounds, vuOutBounds, knobArea;
-    juce::Rectangle<int> lraInBadge, lraOutBadge, inGainBounds;
+    juce::Rectangle<int> lraInBadge, lraOutBadge, inGainBounds, compGrBounds;
 
     std::unique_ptr<juce::Drawable> logo;
 

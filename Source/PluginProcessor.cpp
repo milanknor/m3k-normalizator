@@ -35,6 +35,31 @@ juce::AudioProcessorValueTreeState::ParameterLayout M3KNormalizatorProcessor::cr
         juce::NormalisableRange<float>(-24.0f, 24.0f, 0.1f), 0.0f,
         juce::AudioParameterFloatAttributes().withLabel("dB")));
 
+    // Intermediate (glue) compressor — loudness-neutral leveler between AGC and limiter
+    layout.add(std::make_unique<juce::AudioParameterBool>("compOn", "Compressor", false));
+    layout.add(std::make_unique<juce::AudioParameterFloat>(
+        "compThresh", "Comp Threshold",
+        juce::NormalisableRange<float>(-40.0f, 0.0f, 0.1f), -20.0f,
+        juce::AudioParameterFloatAttributes().withLabel("dB")));
+    layout.add(std::make_unique<juce::AudioParameterFloat>(
+        "compRatio", "Comp Ratio",
+        juce::NormalisableRange<float>(1.0f, 8.0f, 0.1f), 3.0f,
+        juce::AudioParameterFloatAttributes().withLabel(":1")));
+
+    layout.add(std::make_unique<juce::AudioParameterFloat>(
+        "compAttack", "Comp Attack",
+        juce::NormalisableRange<float>(1.0f, 100.0f, 0.1f, 0.5f), 10.0f,
+        juce::AudioParameterFloatAttributes().withLabel("ms")));
+    layout.add(std::make_unique<juce::AudioParameterFloat>(
+        "compRelease", "Comp Release",
+        juce::NormalisableRange<float>(10.0f, 1000.0f, 1.0f, 0.5f), 150.0f,
+        juce::AudioParameterFloatAttributes().withLabel("ms")));
+
+    // Master output volume (post-limiter attenuation) — final playback level
+    layout.add(std::make_unique<juce::AudioParameterFloat>(
+        "outputVol", "Output Volume",
+        juce::NormalisableRange<float>(0.0f, 1.0f, 0.001f), 1.0f));
+
     layout.add(std::make_unique<juce::AudioParameterBool>(
         "normalize", "Auto Normalize", true));
 
@@ -179,6 +204,36 @@ float M3KNormalizatorProcessor::computeIntegratedGated(const long long* hist) co
     return (float)(10.0 * std::log10(e2 / (double)n));
 }
 
+void M3KNormalizatorProcessor::pushSpectrumSample(float s)
+{
+    fftFifo[(size_t)fftFifoIdx] = s;
+    if (++fftFifoIdx >= kFftSize) { computeSpectrum(); fftFifoIdx = 0; }
+}
+
+void M3KNormalizatorProcessor::computeSpectrum()
+{
+    std::fill(fftBuf.begin(), fftBuf.end(), 0.0f);
+    std::copy(fftFifo.begin(), fftFifo.end(), fftBuf.begin());
+    fftWindow.multiplyWithWindowingTable(fftBuf.data(), (size_t)kFftSize);
+    fft.performFrequencyOnlyForwardTransform(fftBuf.data());   // magnitudes in [0..kFftSize/2]
+
+    const double nyq = sampleRate_ * 0.5;
+    const float  norm = 2.0f / (float)kFftSize;
+    for (int b = 0; b < kSpecBins; ++b)
+    {
+        // 20 Hz .. 20 kHz, log spaced (20 * 1000^(b/(N-1)))
+        const double f0 = 20.0 * std::pow(1000.0, (double)b      / (kSpecBins));
+        const double f1 = 20.0 * std::pow(1000.0, (double)(b+1)  / (kSpecBins));
+        int i0 = juce::jlimit(0, kFftSize/2, (int)(f0 / nyq * (kFftSize/2)));
+        int i1 = juce::jlimit(i0+1, kFftSize/2, (int)(f1 / nyq * (kFftSize/2)));
+        float mag = 0.0f;
+        for (int i = i0; i < i1; ++i) mag = std::max(mag, fftBuf[(size_t)i]);
+        float db = juce::Decibels::gainToDecibels(mag * norm, -100.0f);
+        float prev = spectrum[b].load();
+        spectrum[b].store(prev + 0.4f * (db - prev));   // light smoothing
+    }
+}
+
 void M3KNormalizatorProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
 {
     prepared_ = false;
@@ -188,7 +243,8 @@ void M3KNormalizatorProcessor::prepareToPlay(double sampleRate, int samplesPerBl
     computeCWeightingCoefficients(sampleRate);
 
     for (int ch = 0; ch < 2; ++ch)
-        kHsState[ch] = kRlbState[ch] = cState1[ch] = cState2[ch] = {};
+        kHsState[ch] = kRlbState[ch] = cState1[ch] = cState2[ch]
+            = kHsStateOut[ch] = kRlbStateOut[ch] = {};
 
     momSamples       = std::max(1, (int)(sampleRate * momentaryWindowMs / 1000.0));
     stSamples        = std::max(1, (int)(sampleRate * shortTermWindowMs / 1000.0));
@@ -200,6 +256,8 @@ void M3KNormalizatorProcessor::prepareToPlay(double sampleRate, int samplesPerBl
     cMomBuf   .setSize(2, momSamples,       false, true, false); cMomBuf   .clear();
     cStBuf    .setSize(2, stSamples,        false, true, false); cStBuf    .clear();
     cCustomBuf.setSize(2, customSamplesMax, false, true, false); cCustomBuf.clear();
+    kStBufOut .setSize(2, stSamples,        false, true, false); kStBufOut .clear();
+    stPosOut = 0;
 
     momPos = stPos = customPos = 0;
     kIntSum=0; kIntCount=0;
@@ -216,6 +274,9 @@ void M3KNormalizatorProcessor::prepareToPlay(double sampleRate, int samplesPerBl
     normGainSmooth = 1.0;
     faderG[0]=faderG[1]=faderG[2]=faderG[3]=1.0;
     limG1 = limG2 = 1.0;
+    fftFifoIdx = 0;
+    for (int b = 0; b < kSpecBins; ++b) spectrum[b].store(-100.0f);
+    compEnv = -120.0; compAvgGr = 0.0;
 
     // True-peak limiter: 4x oversampling + lookahead, operating in the oversampled domain
     osChannels = juce::jlimit(1, 2, getTotalNumOutputChannels());
@@ -546,6 +607,40 @@ void M3KNormalizatorProcessor::processBlock(juce::AudioBuffer<float>& buffer, ju
     for (int ch = 0; ch < numChannels; ++ch)
         buffer.applyGain(ch, 0, numSamples, (float)normGainSmooth);
 
+    // ---- Intermediate compressor (glue/leveler) — loudness-neutral ----
+    // Reduces medium-term dynamics; running-average GR is added back as makeup so the
+    // average loudness (the AGC target) is preserved. Sits before the true-peak limiter.
+    if (*apvts.getRawParameterValue("compOn") > 0.5f)
+    {
+        const double thr   = (double)*apvts.getRawParameterValue("compThresh");
+        const double ratio = (double)*apvts.getRawParameterValue("compRatio");
+        const double knee  = 6.0;
+        const double atkC  = std::exp(-1.0 / (sampleRate_ * (double)*apvts.getRawParameterValue("compAttack")  / 1000.0));
+        const double relC  = std::exp(-1.0 / (sampleRate_ * (double)*apvts.getRawParameterValue("compRelease") / 1000.0));
+        const double avgC  = std::exp(-1.0 / (sampleRate_ * 0.300));   // makeup average
+        double minGrDb = 0.0;
+        for (int i = 0; i < numSamples; ++i)
+        {
+            double l = std::abs((double)buffer.getSample(0, i));
+            if (numChannels > 1) l = std::max(l, std::abs((double)buffer.getSample(1, i)));
+            double lvl = l <= 1e-12 ? -120.0 : 20.0 * std::log10(l);
+            double c = lvl > compEnv ? atkC : relC;
+            compEnv = compEnv * c + lvl * (1.0 - c);
+            double over = compEnv - thr, gr;
+            if      (over <= -knee*0.5) gr = 0.0;
+            else if (over >=  knee*0.5) gr = over * (1.0/ratio - 1.0);
+            else { double e = over + knee*0.5; gr = (1.0/ratio - 1.0) * (e*e) / (2.0*knee); }
+            compAvgGr = compAvgGr * avgC + gr * (1.0 - avgC);
+            double gdb = gr - compAvgGr;                 // makeup = -avgGr (neutral)
+            double g = juce::Decibels::decibelsToGain(gdb);
+            for (int ch = 0; ch < numChannels; ++ch)
+                buffer.setSample(ch, i, (float)(buffer.getSample(ch, i) * g));
+            minGrDb = std::min(minGrDb, gr);
+        }
+        compGrDb.store((float)minGrDb);
+    }
+    else compGrDb.store(0.0f);
+
     // ---- True-peak limiter: oversample 4x, limit, downsample ----
     // Sliding-window minimum of the required gain over the lookahead window (so the gain
     // is already down when a peak emerges from the delay line — fixes the mistimed,
@@ -603,12 +698,28 @@ void M3KNormalizatorProcessor::processBlock(juce::AudioBuffer<float>& buffer, ju
     }
     limGrDb.store(juce::Decibels::gainToDecibels((float)minGain, -60.0f));
 
+    // ---- Master output volume (final playback level, post-limiter) ----
+    {
+        const float outVol = *apvts.getRawParameterValue("outputVol");
+        if (outVol < 0.9999f)
+            for (int ch = 0; ch < numChannels; ++ch)
+                buffer.applyGain(ch, 0, numSamples, outVol);
+    }
+
     // ---- VU metering — measure per-channel output peak after gain ----
     float outputPeak[2] = { 0.0f, 0.0f };
     for (int ch = 0; ch < numChannels; ++ch)
         for (int i = 0; i < numSamples; ++i)
             outputPeak[ch] = std::max(outputPeak[ch], std::abs(buffer.getSample(ch, i)));
     if (numChannels < 2) outputPeak[1] = outputPeak[0];
+
+    // ---- Spectrum analyzer — feed the mono-summed output ----
+    if (numChannels >= 2)
+        for (int i = 0; i < numSamples; ++i)
+            pushSpectrumSample(0.5f * (buffer.getSample(0,i) + buffer.getSample(1,i)));
+    else
+        for (int i = 0; i < numSamples; ++i)
+            pushSpectrumSample(buffer.getSample(0,i));
 
     // Peak meter ballistics: instant attack, fast release (~120ms decay)
     const double vuRelBlock = std::exp(-(double)numSamples / (sampleRate_ * 0.120));
@@ -644,13 +755,26 @@ void M3KNormalizatorProcessor::processBlock(juce::AudioBuffer<float>& buffer, ju
     }
 
     // ---- Loudness Range — sample short-term loudness every 100 ms ----
-    // LRA uses K-weighting; output ST ≈ input ST + applied gain (linear, slow gain)
+    // K-weight the actual OUTPUT into its own short-term ring so the output LRA reflects
+    // the processed signal (compressor/limiter), not just input + a gain offset.
+    for (int i = 0; i < numSamples; ++i)
+    {
+        for (int ch = 0; ch < numChannels; ++ch)
+        {
+            double x  = (double)buffer.getSample(ch, i);
+            double xk = processBiquad(x,  kHsStateOut[ch],  kHsB,  kHsA);
+            xk        = processBiquad(xk, kRlbStateOut[ch], kRlbB, kRlbA);
+            kStBufOut.setSample(ch, stPosOut, (float)xk);
+        }
+        if (++stPosOut >= stSamples) stPosOut = 0;
+    }
+    const double outST = lufsOf(kStBufOut, stSamples, numChannels);
+
     lraSampleCounter += numSamples;
     const int lraHop = std::max(1, (int)(sampleRate_ * 0.1));
     if (lraSampleCounter >= lraHop)
     {
         lraSampleCounter -= lraHop;
-        const double gainDb = juce::Decibels::gainToDecibels((float)normGainSmooth);
         auto addSample = [this](long long* hist, double L)
         {
             if (L < kLraMinDb) return;                 // absolute gate at -70 LUFS
@@ -658,7 +782,7 @@ void M3KNormalizatorProcessor::processBlock(juce::AudioBuffer<float>& buffer, ju
             hist[juce::jlimit(0, kLraBins - 1, idx)]++;
         };
         addSample(lraHistIn,  kSt);
-        addSample(lraHistOut, kSt + gainDb);
+        addSample(lraHistOut, outST);
         lraInputLU .store(computeLra(lraHistIn));
         lraOutputLU.store(computeLra(lraHistOut));
 

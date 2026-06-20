@@ -57,6 +57,7 @@ public:
     std::atomic<float> lraInputLU     {   0.0f };
     std::atomic<float> lraOutputLU    {   0.0f };
     std::atomic<float> limGrDb        {   0.0f }; // limiter gain reduction (<=0)
+    std::atomic<float> compGrDb       {   0.0f }; // compressor gain reduction (<=0)
     std::atomic<float> outIntegratedLufs { -70.0f }; // output integrated (for compliance)
     std::atomic<unsigned int> blockCounter { 0 }; // heartbeat: incremented each processBlock
     std::atomic<long long> integratedSamples { 0 }; // samples above gate (for elapsed time display)
@@ -64,6 +65,10 @@ public:
     // Per-mode fader preview (dB) — gain each mode WOULD apply (same gating/cap/smoothing
     // as the real fader). Index 0=Momentary,1=Short,2=Integrated,3=Custom (active weighting).
     std::atomic<float> faderDb[4] { {0.0f},{0.0f},{0.0f},{0.0f} };
+
+    // Spectrum analyzer — magnitude (dB) per log-spaced display bin (output signal).
+    static constexpr int kSpecBins = 96;
+    std::atomic<float> spectrum[kSpecBins];
 
     // Row 1 = A-weighted, Row 2 = C-weighted
     enum Mode { kMomentary=0, kShort, kIntegrated, kCustom,
@@ -104,6 +109,11 @@ private:
     BiquadState kHsState[2], kRlbState[2];
     double kHsB[3]{}, kHsA[3]{}, kRlbB[3]{}, kRlbA[3]{};
     void computeKWeightingCoefficients(double fs);
+    // Output-signal K-weighting + short-term ring — for the OUTPUT LRA (reflects the
+    // actual processed signal incl. compressor/limiter, not input + a gain offset).
+    BiquadState kHsStateOut[2], kRlbStateOut[2];
+    juce::AudioBuffer<float> kStBufOut;
+    int stPosOut = 0;
 
     // ---- C-weighting (IEC 61672-1) — two identical cascaded biquads ----
     BiquadState cState1[2], cState2[2];
@@ -137,6 +147,17 @@ private:
 
     // Integrated loudness — EBU R128 two-stage gating (absolute -70 LUFS + relative -10 LU).
     // Histograms of 400 ms momentary blocks sampled every 100 ms (75% overlap, per EBU).
+    // FFT spectrum analyzer (output signal, mono sum)
+    juce::dsp::FFT fft { 11 };
+    static constexpr int kFftSize = 2048;
+    std::array<float, kFftSize>   fftFifo {};
+    std::array<float, kFftSize*2> fftBuf {};
+    int  fftFifoIdx = 0;
+    juce::dsp::WindowingFunction<float> fftWindow
+        { (size_t)kFftSize, juce::dsp::WindowingFunction<float>::hann };
+    void pushSpectrumSample(float s);
+    void computeSpectrum();
+
     long long intHistK[kLraBins] {};
     long long intHistC[kLraBins] {};
     // Display integrated — CONTINUOUS (resets only via RESET I, matches the INT timer),
@@ -151,6 +172,10 @@ private:
     // Smoothed normGain (prevents clicks on target changes)
     double normGainSmooth = 1.0;
     double faderG[4] = { 1.0, 1.0, 1.0, 1.0 };   // per-mode preview smoothing states
+
+    // Intermediate compressor state (loudness-neutral leveler)
+    double compEnv = -120.0;   // dB level detector
+    double compAvgGr = 0.0;    // running-average gain reduction (for neutral makeup)
 
     // Safety output ceiling — oversampled (true-peak) lookahead limiter
     std::unique_ptr<juce::dsp::Oversampling<float>> oversampler;

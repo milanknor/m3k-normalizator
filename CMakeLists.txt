@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(M3KNormalizator VERSION 0.9.19)
+project(M3KNormalizator VERSION 0.10.10)
 
 set(CMAKE_CXX_STANDARD 17)
 
@@ -14,6 +14,8 @@ juce_add_plugin(M3KNormalizator
     PLUGIN_CODE M3kn
     FORMATS VST3 Standalone
     PRODUCT_NAME "M3K Normalizator"
+    ICON_BIG "${CMAKE_CURRENT_SOURCE_DIR}/Source/icon.png"
+    ICON_SMALL "${CMAKE_CURRENT_SOURCE_DIR}/Source/icon.png"
     IS_SYNTH FALSE
     NEEDS_MIDI_INPUT FALSE
     NEEDS_MIDI_OUTPUT FALSE
