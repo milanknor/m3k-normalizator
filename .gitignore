@@ -16,3 +16,6 @@ CLAUDE.md
 # OS
 Thumbs.db
 .DS_Store
+
+# Inno Setup vystup (instalacka je build artefakt)
+installer/*.exe
