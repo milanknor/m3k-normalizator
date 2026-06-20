@@ -38,22 +38,31 @@ static std::unique_ptr<juce::Drawable> makeLogo()
 struct AboutComponent : public juce::Component
 {
     std::unique_ptr<juce::Drawable> logo = makeLogo();
-    AboutComponent() { setSize(250, 196); }
+    AboutComponent() { setSize(270, 258); }
     void paint(juce::Graphics& g) override
     {
+        const int W=getWidth();
         g.fillAll(juce::Colour(0xFF161616));
         g.setColour(amber()); g.drawRect(getLocalBounds(), 1);
-        if(logo) logo->drawWithin(g, juce::Rectangle<float>(getWidth()*0.5f-46,14,92,92),
+        if(logo) logo->drawWithin(g, juce::Rectangle<float>(W*0.5f-46,12,92,92),
                                   juce::RectanglePlacement::centred, 1.0f);
         g.setColour(amber()); g.setFont(pf(15,true));
-        g.drawText("M3K NORMALIZATOR", 0,112,getWidth(),20, juce::Justification::centred);
+        g.drawText("M3K NORMALIZATOR", 0,108,W,20, juce::Justification::centred);
         g.setColour(txtCol()); g.setFont(pf(12,true));
-        g.drawText("verze " JucePlugin_VersionString, 0,136,getWidth(),16, juce::Justification::centred);
+        g.drawText("verze " JucePlugin_VersionString, 0,130,W,16, juce::Justification::centred);
         g.setColour(dimCol()); g.setFont(pf(9));
-        g.drawText("LUFS normalizace  -  EBU R128 / IEC 61672",
-                   0,160,getWidth(),14, juce::Justification::centred);
-        g.drawText(juce::String::fromUTF8("(c) Milan Knor"),
-                   0,174,getWidth(),14, juce::Justification::centred);
+        g.drawText("LUFS normalizace  -  EBU R128 / IEC 61672", 0,152,W,13, juce::Justification::centred);
+        g.drawText(juce::String::fromUTF8("(c) 2026 Milan Knor"), 0,166,W,13, juce::Justification::centred);
+        // AGPL "appropriate legal notices" (free software, no warranty)
+        g.setColour(juce::Colour(0xFF888888)); g.setFont(pf(8.5f));
+        g.drawText(juce::String::fromUTF8("Svobodn\xc3\xbd software \xe2\x80\x93 licence GNU AGPL v3"),
+                   0,188,W,12, juce::Justification::centred);
+        g.drawText(juce::String::fromUTF8("Poskytov\xc3\xa1no BEZ Z\xc3\x81RUKY."),
+                   0,201,W,12, juce::Justification::centred);
+        g.drawText("github.com/milanknor/m3k-normalizator", 0,214,W,12, juce::Justification::centred);
+        g.setColour(juce::Colour(0xFF666666)); g.setFont(pf(8));
+        g.drawText(juce::String::fromUTF8("Postaveno s JUCE \xe2\x80\xa2 VST3 (c) Steinberg"),
+                   0,234,W,12, juce::Justification::centred);
     }
 };
 

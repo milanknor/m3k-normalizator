@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(M3KNormalizator VERSION 0.10.14)
+project(M3KNormalizator VERSION 0.10.15)
 
 set(CMAKE_CXX_STANDARD 17)
 
@@ -40,6 +40,7 @@ target_compile_definitions(M3KNormalizator PUBLIC
     JUCE_WEB_BROWSER=0
     JUCE_USE_CURL=0
     JUCE_VST3_CAN_REPLACE_VST2=0
+    JUCE_DISPLAY_SPLASH_SCREEN=1   # required by JUCE's free (AGPLv3) licence
 )
 
 target_link_libraries(M3KNormalizator PRIVATE
