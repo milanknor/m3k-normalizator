@@ -11,8 +11,13 @@ juce::AudioProcessorValueTreeState::ParameterLayout M3KNormalizatorProcessor::cr
         juce::AudioParameterFloatAttributes().withLabel("LUFS")));
 
     layout.add(std::make_unique<juce::AudioParameterFloat>(
-        "releaseMs", "Speed",
+        "releaseMs", "Up Speed",
         juce::NormalisableRange<float>(10.0f, 4000.0f, 1.0f, 0.5f), 300.0f,
+        juce::AudioParameterFloatAttributes().withLabel("ms")));
+
+    layout.add(std::make_unique<juce::AudioParameterFloat>(
+        "attackMs", "Down Speed",
+        juce::NormalisableRange<float>(5.0f, 2000.0f, 1.0f, 0.5f), 80.0f,
         juce::AudioParameterFloatAttributes().withLabel("ms")));
 
     layout.add(std::make_unique<juce::AudioParameterFloat>(
@@ -24,6 +29,11 @@ juce::AudioProcessorValueTreeState::ParameterLayout M3KNormalizatorProcessor::cr
         "ceiling", "Limiter",
         juce::NormalisableRange<float>(-6.0f, 0.0f, 0.1f), -0.3f,
         juce::AudioParameterFloatAttributes().withLabel("dBFS")));
+
+    layout.add(std::make_unique<juce::AudioParameterFloat>(
+        "inputGain", "Input Gain",
+        juce::NormalisableRange<float>(-24.0f, 24.0f, 0.1f), 0.0f,
+        juce::AudioParameterFloatAttributes().withLabel("dB")));
 
     layout.add(std::make_unique<juce::AudioParameterBool>(
         "normalize", "Auto Normalize", true));
@@ -138,6 +148,37 @@ float M3KNormalizatorProcessor::computeLra(const long long* hist) const
     return (float)std::max(0.0, hi - lo);
 }
 
+// EBU R128 integrated loudness from a histogram of 400 ms momentary blocks:
+// absolute gate at -70 LUFS, then a relative gate at (energy-mean - 10 LU).
+float M3KNormalizatorProcessor::computeIntegratedGated(const long long* hist) const
+{
+    auto binToLufs = [](int i){ return kLraMinDb + (i + 0.5) * kLraBinW; };
+
+    // Pass 1: energy-mean over absolute-gated blocks (histogram already starts at -70).
+    long long total = 0; double energy = 0.0;
+    for (int i = 0; i < kLraBins; ++i)
+        if (hist[i] > 0)
+        {
+            total  += hist[i];
+            energy += (double)hist[i] * std::pow(10.0, binToLufs(i) / 10.0);
+        }
+    if (total < 4) return -70.0f;               // need ~400 ms of gated signal
+
+    double meanL     = 10.0 * std::log10(energy / (double)total);
+    double relThresh = meanL - 10.0;            // EBU relative gate: -10 LU
+
+    // Pass 2: energy-mean over blocks above the relative threshold.
+    long long n = 0; double e2 = 0.0;
+    for (int i = 0; i < kLraBins; ++i)
+        if (hist[i] > 0 && binToLufs(i) >= relThresh)
+        {
+            n  += hist[i];
+            e2 += (double)hist[i] * std::pow(10.0, binToLufs(i) / 10.0);
+        }
+    if (n < 1) return (float)meanL;
+    return (float)(10.0 * std::log10(e2 / (double)n));
+}
+
 void M3KNormalizatorProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
 {
     prepared_ = false;
@@ -166,10 +207,13 @@ void M3KNormalizatorProcessor::prepareToPlay(double sampleRate, int samplesPerBl
 
     std::fill(std::begin(lraHistIn),  std::end(lraHistIn),  0LL);
     std::fill(std::begin(lraHistOut), std::end(lraHistOut), 0LL);
+    std::fill(std::begin(intHistK),   std::end(intHistK),   0LL);
+    std::fill(std::begin(intHistC),   std::end(intHistC),   0LL);
     lraSampleCounter = 0;
 
     normGainSmooth = 1.0;
-    limGain = 1.0;
+    faderG[0]=faderG[1]=faderG[2]=faderG[3]=1.0;
+    limG1 = limG2 = 1.0;
 
     // True-peak limiter: 4x oversampling + lookahead, operating in the oversampled domain
     osChannels = juce::jlimit(1, 2, getTotalNumOutputChannels());
@@ -181,6 +225,10 @@ void M3KNormalizatorProcessor::prepareToPlay(double sampleRate, int samplesPerBl
     limDelay.setSize(2, limLookahead, false, true, false);
     limDelay.clear();
     limWritePos = 0;
+    // Monotonic-deque ring for the sliding-window minimum (capacity = window + slack)
+    limDqVal.assign((size_t)limLookahead + 2, 1.0f);
+    limDqIdx.assign((size_t)limLookahead + 2, 0LL);
+    limDqHead = 0; limDqCount = 0; limSampleIdx = 0;
     setLatencySamples((int)oversampler->getLatencyInSamples()
                       + (int)(limLookahead / oversampler->getOversamplingFactor()));
     activeSamples = 0;
@@ -216,9 +264,14 @@ void M3KNormalizatorProcessor::processBlock(juce::AudioBuffer<float>& buffer, ju
     const int   mode       = (int)*apvts.getRawParameterValue("mode");
     const bool  isC        = (mode >= kMomentaryC);
 
-    // Per-block smoothing coefficient for normGain
-    const double smoothCoeff = std::exp(-1.0 / (sampleRate_ * (double)releaseMs / 1000.0
-                                                / std::max(1, numSamples)));
+    // ---- Input gain (trim) — applied before measurement & processing ----
+    // A fully transparent input trim: it behaves exactly as if the source recording
+    // changed level (used to simulate loudness changes), so it must NOT reset or retune
+    // anything downstream. Ramped from the previous block to avoid zipper noise.
+    const double inGain = juce::Decibels::decibelsToGain(
+                              (double)*apvts.getRawParameterValue("inputGain"));
+    buffer.applyGainRamp(0, numSamples, (float)inGainPrev, (float)inGain);
+    inGainPrev = inGain;
 
     // ---- Compute per-channel input peak for VU (before any gain) ----
     float inputPeak[2] = { 0.0f, 0.0f };
@@ -282,6 +335,8 @@ void M3KNormalizatorProcessor::processBlock(juce::AudioBuffer<float>& buffer, ju
     {
         kIntSum = 0.0; kIntCount = 0;
         cIntSum = 0.0; cIntCount = 0;
+        std::fill(std::begin(intHistK), std::end(intHistK), 0LL);
+        std::fill(std::begin(intHistC), std::end(intHistC), 0LL);
     }
 
     // ---- Compute LUFS values (channel-summed mean power) ----
@@ -298,17 +353,16 @@ void M3KNormalizatorProcessor::processBlock(juce::AudioBuffer<float>& buffer, ju
 
     double kMom = lufsOf(kMomBuf, momSamples, numChannels);
     double kSt  = lufsOf(kStBuf,  stSamples,  numChannels);
-    double kInt = (kIntCount>0 && kIntSum>1e-20)
-                ? -0.691+10.0*std::log10(kIntSum/(double)kIntCount) : -70.0;
+    double kInt = (double)computeIntegratedGated(intHistK);  // EBU R128 relative-gated
 
     double cMom = lufsOf(cMomBuf, momSamples, numChannels);
     double cSt  = lufsOf(cStBuf,  stSamples,  numChannels);
-    double cInt = (cIntCount>0 && cIntSum>1e-20)
-                ? -0.691+10.0*std::log10(cIntSum/(double)cIntCount) : -70.0;
+    double cInt = (double)computeIntegratedGated(intHistC);  // EBU R128 relative-gated
 
     // Custom-window LUFS — only summed when a Custom mode is active
+    // Custom-window LUFS — computed every block (not only in Custom mode) so the
+    // Custom curve / fader preview is available regardless of the active mode.
     double kCustomVal = -70.0, cCustomVal = -70.0;
-    if (mode == kCustom || mode == kCustomC)
     {
         const int n = juce::jlimit(1, customSamplesMax,
                                    (int)(sampleRate_ * (double)customMs / 1000.0));
@@ -325,7 +379,7 @@ void M3KNormalizatorProcessor::processBlock(juce::AudioBuffer<float>& buffer, ju
         sk /= (double)n; sc /= (double)n;
         kCustomVal = sk > 1e-10 ? -0.691+10.0*std::log10(sk) : -70.0;
         cCustomVal = sc > 1e-10 ? -0.691+10.0*std::log10(sc) : -70.0;
-        customLufs.store((float)(mode == kCustomC ? cCustomVal : kCustomVal));
+        customLufs.store((float)(isC ? cCustomVal : kCustomVal));
     }
 
     // ---- Compute target normGain ----
@@ -393,10 +447,19 @@ void M3KNormalizatorProcessor::processBlock(juce::AudioBuffer<float>& buffer, ju
                 // gain can't chase quiet passages/gaps upward and pump the limiter.
                 // Boost should bring the whole track to target, not every quiet
                 // moment. (No-op in Integrated mode, where ref already is integrated.)
-                const double    intLoud = isC ? cInt      : kInt;
-                const long long ic      = isC ? cIntCount : kIntCount;
-                if (ic > intMin && intLoud > -69.0)
-                    diffDb = std::min(diffDb, (double)target - intLoud + 3.0);
+                //
+                // NOT applied in Custom modes: there the user-set Window is meant to
+                // fully govern responsiveness, so the boost must follow the windowed
+                // measurement (and thus react to sustained level changes) without the
+                // long-memory Integrated holding it down.
+                const bool isCustom = (mode == kCustom || mode == kCustomC);
+                if (!isCustom)
+                {
+                    const double    intLoud = isC ? cInt      : kInt;
+                    const long long ic      = isC ? cIntCount : kIntCount;
+                    if (ic > intMin && intLoud > -69.0)
+                        diffDb = std::min(diffDb, (double)target - intLoud + 3.0);
+                }
                 diffDb = std::max(0.0, diffDb);
             }
             diffDb = juce::jlimit(-40.0, 24.0, diffDb);      // boost capped at +24 dB
@@ -410,28 +473,91 @@ void M3KNormalizatorProcessor::processBlock(juce::AudioBuffer<float>& buffer, ju
         targetNormGain = std::min(normGainSmooth, 1.0);
     }
 
-    // Asymmetric smoothing: gain comes DOWN fast (extra-fast during warm-up cut to
-    // kill any post-pause burst), and UP at the user's Speed setting.
-    const double downCoeff = std::exp(-(double)numSamples / (sampleRate_ * 0.010)); // ~10 ms
-    const double warmCoeff = std::exp(-(double)numSamples / (sampleRate_ * 0.005)); // ~5 ms
+    // Asymmetric smoothing: gain comes DOWN at the user's "Down Speed" (attenuation of
+    // loud surges), UP at the "Up Speed" (gentle boost of quiet material). Warm-up cut
+    // stays extra-fast regardless, as a safety against post-pause bursts.
+    const double downMs    = (double)*apvts.getRawParameterValue("attackMs");
+    const double downCoeff = std::exp(-(double)numSamples / (sampleRate_ * downMs / 1000.0));
+    const double warmCoeff = std::exp(-(double)numSamples / (sampleRate_ * 0.005)); // ~5 ms safety
+
+    // Program-dependent UP (release): large sustained gaps boost at the user's Up Speed;
+    // small corrections are slowed up to ~3x to avoid audible micro-pumping near target.
+    const double upGapDb = juce::Decibels::gainToDecibels((float)std::max(1e-6, targetNormGain))
+                         - juce::Decibels::gainToDecibels((float)std::max(1e-6, normGainSmooth));
+    const double upMs    = (double)releaseMs * (1.0 + 2.0 * std::exp(-std::abs(upGapDb) / 3.0));
+    const double upCoeff = std::exp(-(double)numSamples / (sampleRate_ * upMs / 1000.0));
+
     const double coeff = (targetNormGain < normGainSmooth)
                          ? (cutOnly ? warmCoeff : downCoeff)
-                         : smoothCoeff;
+                         : upCoeff;
     normGainSmooth = normGainSmooth * coeff + targetNormGain * (1.0 - coeff);
     normGainDb.store(juce::Decibels::gainToDecibels((float)normGainSmooth));
+
+    // ---- Per-mode fader preview (display only) — same gating/cap/smoothing as above,
+    //      run for all four base modes so the graph shows what each would do without spikes.
+    {
+        const long long intMinP = (long long)(sampleRate_ * 0.4);
+        const double instLoud   = isC ? blockCLoud : blockKLoud;
+        const double intLoudP   = isC ? cInt : kInt;
+        const long long icP     = isC ? cIntCount : kIntCount;
+        const double refs[4] = { isC?cMom:kMom, isC?cSt:kSt,
+                                 (icP>intMinP ? intLoudP : -70.0), isC?cCustomVal:kCustomVal };
+        const long long wins[4] = { (long long)momSamples, (long long)stSamples,
+                                    (long long)(sampleRate_*0.4),
+                                    juce::jlimit((long long)1,(long long)customSamplesMax,
+                                        (long long)(sampleRate_*(double)customMs/1000.0)) };
+        for (int m = 0; m < 4; ++m)
+        {
+            double tgtG = 1.0; bool cutOnlyP = false;
+            if (doNorm && signalPresent)
+            {
+                double r = refs[m];
+                if (activeSamples < wins[m]) { r = instLoud; cutOnlyP = true; }
+                if (r > -69.0)
+                {
+                    double diffDb = (double)target - r;
+                    const bool allowBoost = !cutOnlyP && (activeSamples >= momSamples);
+                    if (!allowBoost) diffDb = std::min(0.0, diffDb);
+                    else if (diffDb > 0.0)
+                    {
+                        if (m != 3 && icP > intMinP && intLoudP > -69.0)
+                            diffDb = std::min(diffDb, (double)target - intLoudP + 3.0);
+                        diffDb = std::max(0.0, diffDb);
+                    }
+                    diffDb = juce::jlimit(-40.0, 24.0, diffDb);
+                    tgtG = juce::Decibels::decibelsToGain((float)diffDb);
+                }
+            }
+            else if (doNorm) { tgtG = std::min(faderG[m], 1.0); }
+
+            const double upGap = juce::Decibels::gainToDecibels((float)std::max(1e-6, tgtG))
+                               - juce::Decibels::gainToDecibels((float)std::max(1e-6, faderG[m]));
+            const double upMsP = (double)releaseMs * (1.0 + 2.0 * std::exp(-std::abs(upGap) / 3.0));
+            const double upCP  = std::exp(-(double)numSamples / (sampleRate_ * upMsP / 1000.0));
+            const double cf    = (tgtG < faderG[m]) ? (cutOnlyP ? warmCoeff : downCoeff) : upCP;
+            faderG[m] = faderG[m] * cf + tgtG * (1.0 - cf);
+            faderDb[m].store(juce::Decibels::gainToDecibels((float)faderG[m]));
+        }
+    }
 
     // ---- Apply normalization gain ----
     for (int ch = 0; ch < numChannels; ++ch)
         buffer.applyGain(ch, 0, numSamples, (float)normGainSmooth);
 
     // ---- True-peak limiter: oversample 4x, limit, downsample ----
-    const double ceiling  = juce::Decibels::decibelsToGain(
+    // Sliding-window minimum of the required gain over the lookahead window (so the gain
+    // is already down when a peak emerges from the delay line — fixes the mistimed,
+    // hard-clipping behaviour), then two cascaded one-poles smooth the gain envelope.
+    const double ceiling = juce::Decibels::decibelsToGain(
                                 (float)*apvts.getRawParameterValue("ceiling"));
-    const double atkCoeff = 1.0 - std::exp(-3.0 / (double)limLookahead);
-    const double relCoeff = 1.0 - std::exp(-(double)1.0 / (osRate * 0.15)); // ~150 ms
+    const double atk  = 1.0 - std::exp(-4.0 / (double)limLookahead);  // reaches target within lookahead
+    const double atk2 = 1.0 - std::exp(-6.0 / (double)limLookahead);  // 2nd stage, rounds the envelope
+    const double rel  = 1.0 - std::exp(-1.0 / (osRate * 0.05));       // ~50 ms release
+    const float  ceilF = (float)ceiling;
+    const int    cap   = (int)limDqVal.size();
 
     double minGain = 1.0;
-    if (oversampler != nullptr && numChannels == osChannels)
+    if (oversampler != nullptr && numChannels == osChannels && cap > 0)
     {
         juce::dsp::AudioBlock<float> block(buffer.getArrayOfWritePointers(),
                                            (size_t)numChannels, (size_t)numSamples);
@@ -442,17 +568,34 @@ void M3KNormalizatorProcessor::processBlock(juce::AudioBuffer<float>& buffer, ju
             double peak = 0.0;
             for (int ch = 0; ch < numChannels; ++ch)
                 peak = std::max(peak, std::abs((double)os.getSample(ch, i)));
-            double gReq = (peak > ceiling) ? ceiling / peak : 1.0;
-            limGain += (gReq - limGain) * (gReq < limGain ? atkCoeff : relCoeff);
+            const float gReq = (peak > ceiling) ? (float)(ceiling / peak) : 1.0f;
+
+            // push gReq into the monotonic deque (drop ≥ values from the back)
+            while (limDqCount > 0
+                   && limDqVal[(limDqHead + limDqCount - 1) % cap] >= gReq)
+                --limDqCount;
+            const int tail = (limDqHead + limDqCount) % cap;
+            limDqVal[tail] = gReq;
+            limDqIdx[tail] = limSampleIdx;
+            ++limDqCount;
+            // drop entries that fell out of the lookahead window from the front
+            while (limDqCount > 0 && limDqIdx[limDqHead] <= limSampleIdx - limLookahead)
+            { limDqHead = (limDqHead + 1) % cap; --limDqCount; }
+
+            const double gMin = limDqVal[limDqHead];   // front = min gain over the window
+            limG1 += (gMin - limG1) * (gMin < limG1 ? atk  : rel);
+            limG2 += (limG1 - limG2) * (limG1 < limG2 ? atk2 : rel);
+
             for (int ch = 0; ch < numChannels; ++ch)
             {
                 float in      = os.getSample(ch, i);
                 float delayed = limDelay.getSample(ch, limWritePos);
                 limDelay.setSample(ch, limWritePos, in);
-                os.setSample(ch, i, juce::jlimit(-1.0f, 1.0f, (float)(delayed * limGain)));
+                os.setSample(ch, i, juce::jlimit(-ceilF, ceilF, (float)(delayed * limG2)));
             }
             if (++limWritePos >= limLookahead) limWritePos = 0;
-            minGain = std::min(minGain, limGain);
+            minGain = std::min(minGain, limG2);
+            ++limSampleIdx;
         }
         oversampler->processSamplesDown(block);
     }
@@ -513,6 +656,10 @@ void M3KNormalizatorProcessor::processBlock(juce::AudioBuffer<float>& buffer, ju
         addSample(lraHistOut, kSt + gainDb);
         lraInputLU .store(computeLra(lraHistIn));
         lraOutputLU.store(computeLra(lraHistOut));
+
+        // EBU R128 integrated: feed 400 ms momentary blocks (K and C) every 100 ms.
+        addSample(intHistK, kMom);
+        addSample(intHistC, cMom);
     }
 }
 

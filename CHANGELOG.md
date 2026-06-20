@@ -12,6 +12,47 @@ verzování je [semantické](https://semver.org/lang/cs/): **MAJOR.MINOR.PATCH**
 
 ## [Nezveřejněno]
 
+## [0.9.x] – 2026-06-20
+### Přidáno
+- **Dvě rychlosti adaptace**: ovladač **DOWN** (ztišení hlasitého náporu) a **UP**
+  (nenápadný náběh tichého základu) — místo jednoho Speed. Program-dependent UP release
+  (malé korekce se zpomalí, potlačí mikro-pumpování). Tovární presety nastavují obě.
+- **Relativní brána (EBU R128 −10 LU)** — Integrated se počítá dvoustupňovým hradlováním
+  (histogram 400ms momentary bloků po 100 ms). Měření ověřeno proti pyloudnorm na 0,011 LU.
+- **Číselné zadávání hodnot** — dvojklik na knob = napsat hodnotu, Ctrl+klik = výchozí.
+- **Graf: přepínač LOUDNESS / FADER** — Fader pohled ukazuje per-režim průběh zisku
+  (aktivní plnou čarou, ostatní přerušovaně), počítaný se stejným hradlováním jako reálný
+  fader. Přidána **Custom (C) křivka** a políčko. Klik na M/S/I/C/FADER skryje/zobrazí křivku.
+- **Nápověda** (tlačítko „?" vpravo nahoře) — rolovací návod k použití.
+### Změněno
+- **GAIN přejmenován na FADER**, barva sjednocena s gain křivkou. Tlačítka režimů obarvena
+  podle křivek (M zelená, S modrá, I oranžová, C teal). Tmavé téma popup menu. Okno širší (624 px).
+### Opraveno
+- **True-peak limiter** — odstraněno zkreslení při vysoké hlasitosti (kytary). Limiter měl
+  chybné časování (zisk řízen okamžitým vstupem, aplikován na zpožděný signál) → pouštěl
+  špičky na 0 dBFS a tvrdě ořezával. Nově sliding-window minimum (peak-hold) přes lookahead
+  + dvoustupňové vyhlazení + brickwall na stropu. THD 0,285 % → **0,022 %**, strop se drží.
+  (Ověřeno simulací `verify_limiter.py`.)
+
+## [0.8.0] – 2026-06-19
+### Přidáno
+- **Vstupní gain (trim)** — malý ovladač nad levým (IN) VU metrem, symetrický ke kontrolce
+  CÍL vpravo. Rozsah −24 až +24 dB, dvojklik = 0 dB. Aplikuje se na vstup před měřením
+  i zpracováním (s rampou proti lupancům) → ovlivní VU IN, LUFS i limiter. Pod ovladačem
+  je hodnota (zelená = zesílení, oranžová = zeslabení).
+
+## [0.7.0] – 2026-06-18
+### Přidáno
+- **Standalone systray** — okno se zavřením/minimalizací skryje do systray (ikona M);
+  pravý klik = menu (Zobrazit/Skrýt, Nastavení zvuku, Ukončit). Funguje jako audio bridge
+  (např. s VB-Audio Virtual Cable).
+- **VU metry: číselné hodnoty** přímo v metrech (0/−6/−12/−24/−48 dB).
+- **Integrovaný čas** v levém horním rohu grafu (počítá jen signál nad branou −70 LUFS).
+### Změněno
+- Klik na kterékoli LRA kolečko resetuje **obě** LRA; RESET I resetuje jen Integrated.
+- Compliance LED reaguje podle aktivního módu (Momentary/Short/Custom/Integrated).
+- Všech 6 koleček dole rovnoměrně rozloženo přes šířku.
+
 ## [0.5.5] – 2026-06-16
 ### Změněno
 - Sekundární popisky zesvětleny: `dimCol` z `#555555` → `#888888` (lepší kontrast na tmavém pozadí).
